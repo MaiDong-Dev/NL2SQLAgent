@@ -1,0 +1,35 @@
+%% 图6：元知识构建流程 - 展示 startup 时如何将配置同步到三大存储引擎
+graph TB
+    START_BUILD((启动构建)) --> LOAD_CONF["加载 meta_config.yaml<br/>OmegaConf.to_object()"]
+
+    LOAD_CONF --> CHK_TABLE{"有表配置?"}
+    CHK_TABLE -->|是| SAVE_TABLE["保存表/字段到 Meta MySQL<br/>MetaMySQLRepository.save_table_infos()<br/>MetaMySQLRepository.save_column_infos()"]
+    CHK_TABLE -->|否| CHK_METRIC
+
+    SAVE_TABLE --> QD_COL["字段向量化到 Qdrant<br/>name/description/alias 各自 Embedding<br/>ColumnQdrantRepository.upsert()"]
+    QD_COL --> ES_VAL["字段取值到 Elasticsearch<br/>sync=true 的字段建倒排索引<br/>ValueESRepository.index()"]
+    ES_VAL --> CHK_METRIC{"有指标配置?"}
+
+    CHK_METRIC -->|是| SAVE_METRIC["保存指标到 Meta MySQL<br/>MetaMySQLRepository.save_metric_infos()<br/>MetaMySQLRepository.save_column_metrics()"]
+    CHK_METRIC -->|否| DONE
+
+    SAVE_METRIC --> QD_METRIC["指标向量化到 Qdrant<br/>name/description/alias 各自 Embedding<br/>MetricQdrantRepository.upsert()"]
+    QD_METRIC --> DONE((构建完成))
+
+    subgraph STORAGE["三大存储引擎"]
+        META_DB[("Meta MySQL<br/>结构化元数据")]
+        QDRANT_DB[("Qdrant<br/>向量索引")]
+        ES_DB[("Elasticsearch<br/>全文索引")]
+    end
+
+    SAVE_TABLE -.-> META_DB
+    SAVE_METRIC -.-> META_DB
+    QD_COL -.-> QDRANT_DB
+    QD_METRIC -.-> QDRANT_DB
+    ES_VAL -.-> ES_DB
+
+    classDef build fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    classDef storage fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+
+    class START_BUILD,LOAD_CONF,SAVE_TABLE,QD_COL,ES_VAL,SAVE_METRIC,QD_METRIC,DONE build
+    class META_DB,QDRANT_DB,ES_DB storage

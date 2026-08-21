@@ -1,0 +1,36 @@
+# uv虚拟环境（.venv千万不要提交！）
+.venv/
+venv/
+env/
+
+# Python缓存文件
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 打包产物
+dist/
+build/
+*.egg-info/
+
+# PyCharm自身配置
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# 环境变量、密钥
+.env
+.env.local
+
+# 日志、临时文件
+*.log
+*.tmp
+
+# 系统文件
+Thumbs.db
+.DS_Store
+
+# 大模型权重文件（体积过大，不提交，需要时重新下载）
+docker/embedding/

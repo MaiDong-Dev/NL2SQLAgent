@@ -1,0 +1,74 @@
+%% 图3：LangGraph 工作流 Pipeline - 展示从用户查询到 SQL 执行的完整数据流
+graph LR
+    START((START)) --> EK
+
+    subgraph S1["阶段1: 关键词提取"]
+        EK["extract_keywords<br/>jieba分词 + LLM语义扩展"]
+    end
+
+    EK --> RC
+    EK --> RV
+    EK --> RM
+
+    subgraph S2["阶段2: 并行召回"]
+        RC["recall_column<br/>向量检索 ColumnQdrantRepository"]
+        RV["recall_value<br/>全文检索 ValueESRepository"]
+        RM["recall_metric<br/>向量检索 MetricQdrantRepository"]
+    end
+
+    RC --> MRI
+    RV --> MRI
+    RM --> MRI
+
+    subgraph S3["阶段3: 合并与补全"]
+        MRI["merge_retrieved_info<br/>MetaMySQLRepository补全元数据<br/>主外键字段补全"]
+    end
+
+    MRI --> FT
+    MRI --> FM
+
+    subgraph S4["阶段4: LLM 过滤裁剪"]
+        FT["filter_table<br/>LLM裁剪表/字段"]
+        FM["filter_metric<br/>LLM裁剪指标"]
+    end
+
+    FT --> AEC
+    FM --> AEC
+
+    subgraph S5["阶段5: 补充上下文"]
+        AEC["add_extra_context<br/>DWMySQLRepository.get_db_info()<br/>日期信息解析"]
+    end
+
+    AEC --> GS
+
+    subgraph S6["阶段6: SQL 生成与验证循环"]
+        GS["generate_sql<br/>LLM生成SQL<br/>30+条生成规则"]
+        GS --> VS["validate_sql<br/>EXPLAIN 语法检查"]
+        VS -->|error| CS["correct_sql<br/>LLM修正SQL<br/>最小必要修改"]
+        CS --> VS
+        VS -->|success| ES
+    end
+
+    subgraph S7["阶段7: 执行"]
+        ES["execute_sql<br/>SSE流式返回结果"]
+    end
+
+    ES --> END_NODE((END))
+
+    classDef start fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    classDef extract fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef recall fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    classDef merge fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef filter fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef context fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+    classDef sql fill:#fff8e1,stroke:#f9a825,stroke-width:2px
+    classDef execute fill:#e8eaf6,stroke:#3949ab,stroke-width:2px
+
+    class START,END_NODE start
+    class EK extract
+    class RC,RV,RM recall
+    class MRI merge
+    class FT,FM filter
+    class AEC context
+    class GS,VS,CS sql
+    class ES execute

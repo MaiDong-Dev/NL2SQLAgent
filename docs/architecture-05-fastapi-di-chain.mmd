@@ -1,0 +1,78 @@
+%% 图5：FastAPI 依赖注入链 - 展示从 HTTP 请求到 QueryService 的完整注入链
+graph TB
+    subgraph ENTRY["HTTP 请求入口"]
+        ROUTER["POST /api/query<br/>query_router.py"]
+        SCHEMA["QuerySchema<br/>query: str"]
+    end
+
+    subgraph DI["依赖注入层 dependencies.py"]
+        DI_QS["get_query_service()"]
+        DI_EMB["get_embedding_client()"]
+        DI_COL_Q["get_column_qdrant_repository()"]
+        DI_VAL_ES["get_value_es_repository()"]
+        DI_MET_Q["get_metric_qdrant_repository()"]
+        DI_META["get_meta_mysql_repository()"]
+        DI_DW["get_dw_mysql_repository()"]
+        DI_META_S["get_meta_session()"]
+        DI_DW_S["get_dw_session()"]
+    end
+
+    subgraph MANAGERS["客户端管理器 单例"]
+        EMB_MGR["embedding_client_manager<br/>EmbeddingClientManager"]
+        QD_MGR["qdrant_client_manager<br/>QdrantClientManager"]
+        ES_MGR["es_client_manager<br/>ESClientManager"]
+        META_MGR["meta_mysql_client_manager<br/>MysqlClientManager"]
+        DW_MGR["dw_mysql_client_manager<br/>MysqlClientManager"]
+    end
+
+    subgraph REPOS["Repository 实例"]
+        COL_Q_REPO["ColumnQdrantRepository<br/>client: AsyncQdrantClient"]
+        VAL_ES_REPO["ValueESRepository<br/>client: AsyncElasticsearch"]
+        MET_Q_REPO["MetricQdrantRepository<br/>client: AsyncQdrantClient"]
+        META_REPO_I["MetaMySQLRepository<br/>session: AsyncSession"]
+        DW_REPO_I["DWMySQLRepository<br/>session: AsyncSession"]
+    end
+
+    subgraph SVC["服务层"]
+        QS_I["QueryService<br/>query(query: str)"]
+    end
+
+    ROUTER --> SCHEMA
+    ROUTER --> DI_QS
+    DI_QS --> DI_EMB
+    DI_QS --> DI_COL_Q
+    DI_QS --> DI_VAL_ES
+    DI_QS --> DI_MET_Q
+    DI_QS --> DI_META
+    DI_QS --> DI_DW
+    DI_EMB --> EMB_MGR
+    DI_COL_Q --> QD_MGR
+    DI_VAL_ES --> ES_MGR
+    DI_MET_Q --> QD_MGR
+    DI_META --> DI_META_S
+    DI_DW --> DI_DW_S
+    DI_META_S --> META_MGR
+    DI_DW_S --> DW_MGR
+    DI_COL_Q --> COL_Q_REPO
+    DI_VAL_ES --> VAL_ES_REPO
+    DI_MET_Q --> MET_Q_REPO
+    DI_META --> META_REPO_I
+    DI_DW --> DW_REPO_I
+    DI_QS --> QS_I
+    QS_I --> COL_Q_REPO
+    QS_I --> VAL_ES_REPO
+    QS_I --> MET_Q_REPO
+    QS_I --> META_REPO_I
+    QS_I --> DW_REPO_I
+
+    classDef router fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    classDef di fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    classDef mgr fill:#fff8e1,stroke:#f9a825,stroke-width:2px
+    classDef repo fill:#e8eaf6,stroke:#3949ab,stroke-width:2px
+    classDef svc fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+
+    class ROUTER,SCHEMA router
+    class DI_QS,DI_EMB,DI_COL_Q,DI_VAL_ES,DI_MET_Q,DI_META,DI_DW,DI_META_S,DI_DW_S di
+    class EMB_MGR,QD_MGR,ES_MGR,META_MGR,DW_MGR mgr
+    class COL_Q_REPO,VAL_ES_REPO,MET_Q_REPO,META_REPO_I,DW_REPO_I repo
+    class QS_I svc

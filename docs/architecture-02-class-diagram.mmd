@@ -1,0 +1,225 @@
+%% 图2：核心类关系图（Class Diagram） - 展示 Entity → Model → Mapper → Repository → Service 的依赖链
+classDiagram
+    class ColumnInfo {
+        +str id
+        +str name
+        +str type
+        +str role
+        +list examples
+        +str description
+        +list alias
+        +str table_id
+    }
+    class TableInfo {
+        +str id
+        +str name
+        +str role
+        +str description
+    }
+    class MetricInfo {
+        +str id
+        +str name
+        +str description
+        +list relevant_columns
+        +list alias
+    }
+    class ValueInfo {
+        +str id
+        +str value
+        +str column_id
+    }
+    class ColumnMetric {
+        +str column_id
+        +str metric_id
+    }
+
+    class Base {
+        <<DeclarativeBase>>
+    }
+    class ColumnInfoMySQL {
+        +str id PK
+        +str name
+        +str type
+        +str role
+        +JSON examples
+        +Text description
+        +JSON alias
+        +str table_id FK
+    }
+    class TableInfoMySQL {
+        +str id PK
+        +str name
+        +str role
+        +Text description
+    }
+    class MetricInfoMySQL {
+        +str id PK
+        +str name
+        +Text description
+        +JSON relevant_columns
+        +JSON alias
+    }
+    class ColumnMetricMySQL {
+        +str column_id PK
+        +str metric_id PK
+    }
+
+    Base <|-- ColumnInfoMySQL
+    Base <|-- TableInfoMySQL
+    Base <|-- MetricInfoMySQL
+    Base <|-- ColumnMetricMySQL
+
+    class ColumnInfoMapper {
+        +to_entity(ColumnInfoMySQL) ColumnInfo$
+        +to_model(ColumnInfo) ColumnInfoMySQL$
+    }
+    class TableInfoMapper {
+        +to_entity(TableInfoMySQL) TableInfo$
+        +to_model(TableInfo) TableInfoMySQL$
+    }
+    class MetricInfoMapper {
+        +to_entity(MetricInfoMySQL) MetricInfo$
+        +to_model(MetricInfo) MetricInfoMySQL$
+    }
+    class ColumnMetricMapper {
+        +to_entity(ColumnMetricMySQL) ColumnMetric$
+        +to_model(ColumnMetric) ColumnMetricMySQL$
+    }
+
+    ColumnInfoMapper ..> ColumnInfo
+    ColumnInfoMapper ..> ColumnInfoMySQL
+    TableInfoMapper ..> TableInfo
+    TableInfoMapper ..> TableInfoMySQL
+    MetricInfoMapper ..> MetricInfo
+    MetricInfoMapper ..> MetricInfoMySQL
+    ColumnMetricMapper ..> ColumnMetric
+    ColumnMetricMapper ..> ColumnMetricMySQL
+
+    class EmbeddingClientManager {
+        +HuggingFaceEndpointEmbeddings client
+        +init()
+    }
+    class QdrantClientManager {
+        +AsyncQdrantClient client
+        +init()
+        +close()
+    }
+    class ESClientManager {
+        +AsyncElasticsearch client
+        +init()
+        +close()
+    }
+    class MysqlClientManager {
+        +AsyncEngine engine
+        +session_factory
+        +init()
+        +close()
+    }
+
+    class ColumnQdrantRepository {
+        +ensure_collection()
+        +upsert(ids, embeddings, payloads)
+        +search(query_vector, limit) list~ColumnInfo~
+    }
+    class MetricQdrantRepository {
+        +ensure_collection()
+        +upsert(ids, embeddings, payloads)
+        +search(query_vector, limit) list~MetricInfo~
+    }
+    class ValueESRepository {
+        +ensure_index()
+        +index(value_infos)
+        +search(keyword, limit) list~ValueInfo~
+    }
+    class MetaMySQLRepository {
+        +save_table_infos(list~TableInfo~)
+        +save_column_infos(list~ColumnInfo~)
+        +save_metric_infos(list~MetricInfo~)
+        +save_column_metrics(list~ColumnMetric~)
+        +get_column_info_by_id(str) ColumnInfo
+        +get_table_info_by_id(str) TableInfo
+        +get_key_columns_by_table_id(str) list~ColumnInfo~
+    }
+    class DWMySQLRepository {
+        +get_column_types(str) dict
+        +get_column_values(str, str, int) list
+        +get_db_info() dict
+        +validate_sql(str)
+        +execute_sql(str) list~dict~
+    }
+
+    ColumnQdrantRepository --> QdrantClientManager
+    MetricQdrantRepository --> QdrantClientManager
+    ValueESRepository --> ESClientManager
+    MetaMySQLRepository --> MysqlClientManager
+    DWMySQLRepository --> MysqlClientManager
+
+    class QueryService {
+        +query(str) AsyncGenerator
+    }
+    class MetaKnowledgeService {
+        +build(Path)
+        -_save_tables_to_meta_db(MetaConfig) list~ColumnInfo~
+        -_save_column_info_to_qdrant(list~ColumnInfo~)
+        -_save_value_info_to_es(MetaConfig, list~ColumnInfo~)
+        -_save_metrics_to_meta_db(MetaConfig) list~MetricInfo~
+        -_save_metric_info_to_qdrant(list~MetricInfo~)
+    }
+
+    QueryService --> ColumnQdrantRepository
+    QueryService --> ValueESRepository
+    QueryService --> MetricQdrantRepository
+    QueryService --> MetaMySQLRepository
+    QueryService --> DWMySQLRepository
+    QueryService --> EmbeddingClientManager
+
+    MetaKnowledgeService --> MetaMySQLRepository
+    MetaKnowledgeService --> DWMySQLRepository
+    MetaKnowledgeService --> ColumnQdrantRepository
+    MetaKnowledgeService --> EmbeddingClientManager
+    MetaKnowledgeService --> ValueESRepository
+    MetaKnowledgeService --> MetricQdrantRepository
+
+    class DataAgentState {
+        +str query
+        +list keywords
+        +list column_infos
+        +list value_infos
+        +list metric_infos
+        +list table_infos
+        +str sql
+        +str error
+        +str date_info
+        +dict db_info
+    }
+    class DataAgentContext {
+        +EmbeddingClientManager embedding_client
+        +ColumnQdrantRepository column_qdrant_repository
+        +ValueESRepository value_es_repository
+        +MetricQdrantRepository metric_qdrant_repository
+        +MetaMySQLRepository meta_mysql_repository
+        +DWMySQLRepository dw_mysql_repository
+    }
+
+    QueryService ..> DataAgentState
+    QueryService ..> DataAgentContext
+
+    class AppConfig {
+        +LoggingConfig logging
+        +DBConfig db_meta
+        +DBConfig db_dw
+        +QdrantConfig qdrant
+        +EmbeddingConfig embedding
+        +ESConfig es
+        +LLMConfig llm
+    }
+    class MetaConfig {
+        +list~TableConfig~ tables
+        +list~MetricConfig~ metrics
+    }
+
+    EmbeddingClientManager --> AppConfig
+    QdrantClientManager --> AppConfig
+    ESClientManager --> AppConfig
+    MysqlClientManager --> AppConfig
+    MetaKnowledgeService ..> MetaConfig

@@ -1,0 +1,774 @@
+%% =============================================================================
+%% NL2SQL RAG Agent 项目架构依赖关系图
+%% 
+%% 渲染方式（任选其一）：
+%%   1. PyCharm: 安装 "Mermaid" 插件，右键 .mmd 文件 → "Open Mermaid Editor"
+%%   2. VS Code: 安装 "Markdown Preview Mermaid Support" 插件
+%%   3. 在线: 复制内容到 https://mermaid.live/
+%%   4. CLI:  npx @mermaid-js/mermaid-cli mmdc -i architecture.mmd -o architecture.png
+%% =============================================================================
+
+---
+title: NL2SQL RAG Agent 架构全景图
+---
+
+%% =============================================================================
+%% 图1：包级依赖关系图（Package Dependency Graph）
+%% 展示各顶层包的 import 方向
+%% =============================================================================
+
+graph TB
+    subgraph "入口层"
+        API["api<br/>FastAPI 路由 + 依赖注入"]
+        SCRIPTS["scripts<br/>命令行脚本入口"]
+    end
+
+    subgraph "服务层"
+        QS["services/query_service<br/>QueryService<br/>查询入口, 组装Context/State"]
+        MKS["services/meta_knowledge_service<br/>MetaKnowledgeService<br/>元知识构建, 同步三大存储"]
+    end
+
+    subgraph "Agent 层"
+        GRAPH["agent/graph<br/>LangGraph 工作流定义"]
+        NODES["agent/nodes/*<br/>13个 Pipeline 节点"]
+        STATE["agent/state<br/>DataAgentState"]
+        CTX["agent/context<br/>DataAgentContext"]
+        LLM["agent/llm<br/>ChatOpenAI 初始化"]
+    end
+
+    subgraph "提示词层"
+        PROMPT["prompt/prompt_loader<br/>PromptLoader<br/>Jinja2模板加载"]
+    end
+
+    subgraph "仓库层"
+        META_REPO["repositories/mysql/meta<br/>MetaMySQLRepository"]
+        DW_REPO["repositories/mysql/dw<br/>DWMySQLRepository"]
+        COL_QDRANT["repositories/qdrant/column<br/>ColumnQdrantRepository"]
+        MET_QDRANT["repositories/qdrant/metric<br/>MetricQdrantRepository"]
+        VAL_ES["repositories/es/value<br/>ValueESRepository"]
+    end
+
+    subgraph "实体层"
+        ENTITIES["entities/*<br/>ColumnInfo, TableInfo<br/>MetricInfo, ValueInfo<br/>ColumnMetric"]
+    end
+
+    subgraph "模型层"
+        MODELS["models/*<br/>ColumnInfoMySQL<br/>TableInfoMySQL<br/>MetricInfoMySQL<br/>ColumnMetricMySQL"]
+        BASE["models/base<br/>DeclarativeBase"]
+    end
+
+    subgraph "客户端层"
+        EMB_CLIENT["clients/embedding<br/>EmbeddingClientManager<br/>HuggingFace TEI"]
+        QD_CLIENT["clients/qdrant<br/>QdrantClientManager<br/>AsyncQdrantClient"]
+        ES_CLIENT["clients/es<br/>ESClientManager<br/>AsyncElasticsearch"]
+        MYSQL_CLIENT["clients/mysql<br/>MysqlClientManager<br/>AsyncSession"]
+    end
+
+    subgraph "配置层"
+        APP_CONF["conf/app_config<br/>AppConfig<br/>DB/Qdrant/ES/LLM/Embedding"]
+        META_CONF["conf/meta_config<br/>MetaConfig<br/>表/字段/指标定义"]
+        LOADER["conf/config_loader<br/>OmegaConf 加载器"]
+    end
+
+    subgraph "核心层"
+        LOG["core/log<br/>loguru 日志"]
+        LIFESPAN["core/lifespan<br/>FastAPI 生命周期"]
+        REQ_CTX["core/context<br/>request_id ContextVar"]
+    end
+
+    API --> QS
+    API --> STATE
+    SCRIPTS --> MKS
+    QS --> GRAPH
+    QS --> STATE
+    QS --> CTX
+    QS --> EMB_CLIENT
+    QS --> COL_QDRANT
+    QS --> VAL_ES
+    QS --> MET_QDRANT
+    QS --> META_REPO
+    QS --> DW_REPO
+    MKS --> META_CONF
+    MKS --> EMB_CLIENT
+    MKS --> COL_QDRANT
+    MKS --> VAL_ES
+    MKS --> MET_QDRANT
+    MKS --> META_REPO
+    MKS --> DW_REPO
+    MKS --> ENTITIES
+    GRAPH --> NODES
+    NODES --> STATE
+    NODES --> CTX
+    NODES --> LLM
+    NODES --> PROMPT
+    NODES --> EMB_CLIENT
+    NODES --> COL_QDRANT
+    NODES --> VAL_ES
+    NODES --> MET_QDRANT
+    NODES --> META_REPO
+    NODES --> DW_REPO
+    NODES --> ENTITIES
+    LLM --> APP_CONF
+    COL_QDRANT --> QD_CLIENT
+    COL_QDRANT --> ENTITIES
+    MET_QDRANT --> QD_CLIENT
+    MET_QDRANT --> ENTITIES
+    VAL_ES --> ES_CLIENT
+    VAL_ES --> ENTITIES
+    META_REPO --> MYSQL_CLIENT
+    META_REPO --> ENTITIES
+    META_REPO --> MODELS
+    DW_REPO --> MYSQL_CLIENT
+    MODELS --> BASE
+    QD_CLIENT --> APP_CONF
+    ES_CLIENT --> APP_CONF
+    MYSQL_CLIENT --> APP_CONF
+    EMB_CLIENT --> APP_CONF
+    LIFESPAN --> EMB_CLIENT
+    LIFESPAN --> QD_CLIENT
+    LIFESPAN --> ES_CLIENT
+    LIFESPAN --> MYSQL_CLIENT
+    LOADER --> APP_CONF
+    META_CONF --> LOADER
+
+    classDef api fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    classDef service fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    classDef agent fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef prompt fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef repo fill:#e8eaf6,stroke:#3949ab,stroke-width:2px
+    classDef entity fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef model fill:#ede7f6,stroke:#512da8,stroke-width:2px
+    classDef client fill:#fff8e1,stroke:#f9a825,stroke-width:2px
+    classDef conf fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+    classDef core fill:#efebe9,stroke:#5d4037,stroke-width:2px
+
+    class API,SCRIPTS api
+    class QS,MKS service
+    class GRAPH,NODES,STATE,CTX,LLM agent
+    class PROMPT prompt
+    class META_REPO,DW_REPO,COL_QDRANT,MET_QDRANT,VAL_ES repo
+    class ENTITIES entity
+    class MODELS,BASE model
+    class EMB_CLIENT,QD_CLIENT,ES_CLIENT,MYSQL_CLIENT client
+    class APP_CONF,META_CONF,LOADER conf
+    class LOG,LIFESPAN,REQ_CTX core
+
+
+%% =============================================================================
+%% 图2：核心类关系图（Class Diagram）
+%% 展示 Entity → Model → Mapper → Repository → Service 的依赖链
+%% =============================================================================
+
+classDiagram
+    class ColumnInfo {
+        +str id
+        +str name
+        +str type
+        +str role
+        +list examples
+        +str description
+        +list alias
+        +str table_id
+    }
+    class TableInfo {
+        +str id
+        +str name
+        +str role
+        +str description
+    }
+    class MetricInfo {
+        +str id
+        +str name
+        +str description
+        +list relevant_columns
+        +list alias
+    }
+    class ValueInfo {
+        +str id
+        +str value
+        +str column_id
+    }
+    class ColumnMetric {
+        +str column_id
+        +str metric_id
+    }
+
+    class Base {
+        <<DeclarativeBase>>
+    }
+    class ColumnInfoMySQL {
+        +str id PK
+        +str name
+        +str type
+        +str role
+        +JSON examples
+        +Text description
+        +JSON alias
+        +str table_id FK
+    }
+    class TableInfoMySQL {
+        +str id PK
+        +str name
+        +str role
+        +Text description
+    }
+    class MetricInfoMySQL {
+        +str id PK
+        +str name
+        +Text description
+        +JSON relevant_columns
+        +JSON alias
+    }
+    class ColumnMetricMySQL {
+        +str column_id PK
+        +str metric_id PK
+    }
+
+    Base <|-- ColumnInfoMySQL
+    Base <|-- TableInfoMySQL
+    Base <|-- MetricInfoMySQL
+    Base <|-- ColumnMetricMySQL
+
+    class ColumnInfoMapper {
+        +to_entity(ColumnInfoMySQL) ColumnInfo$
+        +to_model(ColumnInfo) ColumnInfoMySQL$
+    }
+    class TableInfoMapper {
+        +to_entity(TableInfoMySQL) TableInfo$
+        +to_model(TableInfo) TableInfoMySQL$
+    }
+    class MetricInfoMapper {
+        +to_entity(MetricInfoMySQL) MetricInfo$
+        +to_model(MetricInfo) MetricInfoMySQL$
+    }
+    class ColumnMetricMapper {
+        +to_entity(ColumnMetricMySQL) ColumnMetric$
+        +to_model(ColumnMetric) ColumnMetricMySQL$
+    }
+
+    ColumnInfoMapper ..> ColumnInfo
+    ColumnInfoMapper ..> ColumnInfoMySQL
+    TableInfoMapper ..> TableInfo
+    TableInfoMapper ..> TableInfoMySQL
+    MetricInfoMapper ..> MetricInfo
+    MetricInfoMapper ..> MetricInfoMySQL
+    ColumnMetricMapper ..> ColumnMetric
+    ColumnMetricMapper ..> ColumnMetricMySQL
+
+    class EmbeddingClientManager {
+        +HuggingFaceEndpointEmbeddings client
+        +init()
+    }
+    class QdrantClientManager {
+        +AsyncQdrantClient client
+        +init()
+        +close()
+    }
+    class ESClientManager {
+        +AsyncElasticsearch client
+        +init()
+        +close()
+    }
+    class MysqlClientManager {
+        +AsyncEngine engine
+        +session_factory
+        +init()
+        +close()
+    }
+
+    class ColumnQdrantRepository {
+        +ensure_collection()
+        +upsert(ids, embeddings, payloads)
+        +search(query_vector, limit) list~ColumnInfo~
+    }
+    class MetricQdrantRepository {
+        +ensure_collection()
+        +upsert(ids, embeddings, payloads)
+        +search(query_vector, limit) list~MetricInfo~
+    }
+    class ValueESRepository {
+        +ensure_index()
+        +index(value_infos)
+        +search(keyword, limit) list~ValueInfo~
+    }
+    class MetaMySQLRepository {
+        +save_table_infos(list~TableInfo~)
+        +save_column_infos(list~ColumnInfo~)
+        +save_metric_infos(list~MetricInfo~)
+        +save_column_metrics(list~ColumnMetric~)
+        +get_column_info_by_id(str) ColumnInfo
+        +get_table_info_by_id(str) TableInfo
+        +get_key_columns_by_table_id(str) list~ColumnInfo~
+    }
+    class DWMySQLRepository {
+        +get_column_types(str) dict
+        +get_column_values(str, str, int) list
+        +get_db_info() dict
+        +validate_sql(str)
+        +execute_sql(str) list~dict~
+    }
+
+    ColumnQdrantRepository --> QdrantClientManager
+    MetricQdrantRepository --> QdrantClientManager
+    ValueESRepository --> ESClientManager
+    MetaMySQLRepository --> MysqlClientManager
+    DWMySQLRepository --> MysqlClientManager
+
+    class QueryService {
+        +query(str) AsyncGenerator
+    }
+    class MetaKnowledgeService {
+        +build(Path)
+        -_save_tables_to_meta_db(MetaConfig) list~ColumnInfo~
+        -_save_column_info_to_qdrant(list~ColumnInfo~)
+        -_save_value_info_to_es(MetaConfig, list~ColumnInfo~)
+        -_save_metrics_to_meta_db(MetaConfig) list~MetricInfo~
+        -_save_metric_info_to_qdrant(list~MetricInfo~)
+    }
+
+    QueryService --> ColumnQdrantRepository
+    QueryService --> ValueESRepository
+    QueryService --> MetricQdrantRepository
+    QueryService --> MetaMySQLRepository
+    QueryService --> DWMySQLRepository
+    QueryService --> EmbeddingClientManager
+
+    MetaKnowledgeService --> MetaMySQLRepository
+    MetaKnowledgeService --> DWMySQLRepository
+    MetaKnowledgeService --> ColumnQdrantRepository
+    MetaKnowledgeService --> EmbeddingClientManager
+    MetaKnowledgeService --> ValueESRepository
+    MetaKnowledgeService --> MetricQdrantRepository
+
+    class DataAgentState {
+        +str query
+        +list keywords
+        +list column_infos
+        +list value_infos
+        +list metric_infos
+        +list table_infos
+        +str sql
+        +str error
+        +str date_info
+        +dict db_info
+    }
+    class DataAgentContext {
+        +EmbeddingClientManager embedding_client
+        +ColumnQdrantRepository column_qdrant_repository
+        +ValueESRepository value_es_repository
+        +MetricQdrantRepository metric_qdrant_repository
+        +MetaMySQLRepository meta_mysql_repository
+        +DWMySQLRepository dw_mysql_repository
+    }
+
+    QueryService ..> DataAgentState
+    QueryService ..> DataAgentContext
+
+    class AppConfig {
+        +LoggingConfig logging
+        +DBConfig db_meta
+        +DBConfig db_dw
+        +QdrantConfig qdrant
+        +EmbeddingConfig embedding
+        +ESConfig es
+        +LLMConfig llm
+    }
+    class MetaConfig {
+        +list~TableConfig~ tables
+        +list~MetricConfig~ metrics
+    }
+
+    EmbeddingClientManager --> AppConfig
+    QdrantClientManager --> AppConfig
+    ESClientManager --> AppConfig
+    MysqlClientManager --> AppConfig
+    MetaKnowledgeService ..> MetaConfig
+
+
+%% =============================================================================
+%% 图3：LangGraph 工作流 Pipeline
+%% 展示从用户查询到 SQL 执行的完整数据流
+%% =============================================================================
+
+graph LR
+    START((START)) --> EK
+
+    subgraph S1["阶段1: 关键词提取"]
+        EK["extract_keywords<br/>jieba分词 + LLM语义扩展"]
+    end
+
+    EK --> RC
+    EK --> RV
+    EK --> RM
+
+    subgraph S2["阶段2: 并行召回"]
+        RC["recall_column<br/>向量检索 ColumnQdrantRepository"]
+        RV["recall_value<br/>全文检索 ValueESRepository"]
+        RM["recall_metric<br/>向量检索 MetricQdrantRepository"]
+    end
+
+    RC --> MRI
+    RV --> MRI
+    RM --> MRI
+
+    subgraph S3["阶段3: 合并与补全"]
+        MRI["merge_retrieved_info<br/>MetaMySQLRepository补全元数据<br/>主外键字段补全"]
+    end
+
+    MRI --> FT
+    MRI --> FM
+
+    subgraph S4["阶段4: LLM 过滤裁剪"]
+        FT["filter_table<br/>LLM裁剪表/字段"]
+        FM["filter_metric<br/>LLM裁剪指标"]
+    end
+
+    FT --> AEC
+    FM --> AEC
+
+    subgraph S5["阶段5: 补充上下文"]
+        AEC["add_extra_context<br/>DWMySQLRepository.get_db_info()<br/>日期信息解析"]
+    end
+
+    AEC --> GS
+
+    subgraph S6["阶段6: SQL 生成与验证循环"]
+        GS["generate_sql<br/>LLM生成SQL<br/>30+条生成规则"]
+        GS --> VS["validate_sql<br/>EXPLAIN 语法检查"]
+        VS -->|error| CS["correct_sql<br/>LLM修正SQL<br/>最小必要修改"]
+        CS --> VS
+        VS -->|success| ES
+    end
+
+    subgraph S7["阶段7: 执行"]
+        ES["execute_sql<br/>SSE流式返回结果"]
+    end
+
+    ES --> END_NODE((END))
+
+    classDef start fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    classDef extract fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef recall fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    classDef merge fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef filter fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef context fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+    classDef sql fill:#fff8e1,stroke:#f9a825,stroke-width:2px
+    classDef execute fill:#e8eaf6,stroke:#3949ab,stroke-width:2px
+
+    class START,END_NODE start
+    class EK extract
+    class RC,RV,RM recall
+    class MRI merge
+    class FT,FM filter
+    class AEC context
+    class GS,VS,CS sql
+    class ES execute
+
+
+%% =============================================================================
+%% 图4：State 字段流转图
+%% 展示 DataAgentState 中每个字段在哪个节点写入、哪个节点读取
+%% =============================================================================
+
+graph TB
+    subgraph STATE_FIELDS["DataAgentState 字段"]
+        S1["query 用户查询"]
+        S2["keywords 关键词列表"]
+        S3["column_infos 字段信息"]
+        S4["value_infos 字段取值"]
+        S5["metric_infos 指标信息"]
+        S6["table_infos 表信息"]
+        S7["sql 生成的SQL"]
+        S8["error SQL错误"]
+        S9["date_info 日期上下文"]
+        S10["db_info 数据库环境"]
+    end
+
+    subgraph WRITE["写入节点"]
+        W1["extract_keywords to keywords"]
+        W2["recall_column to column_infos"]
+        W3["recall_value to value_infos"]
+        W4["recall_metric to metric_infos"]
+        W5["merge_retrieved_info to table_infos + column_infos补全"]
+        W6["filter_table to table_infos裁剪 + column_infos裁剪"]
+        W7["filter_metric to metric_infos裁剪"]
+        W8["add_extra_context to date_info + db_info"]
+        W9["generate_sql to sql"]
+        W10["validate_sql to error"]
+        W11["correct_sql to sql修正"]
+    end
+
+    subgraph READ["读取节点"]
+        R1["extract_keywords 读 query"]
+        R2["recall_column 读 keywords"]
+        R3["recall_value 读 keywords"]
+        R4["recall_metric 读 keywords"]
+        R5["merge_retrieved_info 读 column_infos,value_infos,metric_infos"]
+        R6["filter_table 读 table_infos,column_infos"]
+        R7["filter_metric 读 metric_infos"]
+        R8["add_extra_context 读 query"]
+        R9["generate_sql 读 query,table_infos,column_infos,metric_infos,date_info,db_info"]
+        R10["validate_sql 读 sql"]
+        R11["correct_sql 读 sql,error,query,table_infos,metric_infos,date_info,db_info"]
+        R12["execute_sql 读 sql"]
+    end
+
+    W1 -.-> S2
+    W2 -.-> S3
+    W3 -.-> S4
+    W4 -.-> S5
+    W5 -.-> S6
+    W5 -.-> S3
+    W6 -.-> S6
+    W6 -.-> S3
+    W7 -.-> S5
+    W8 -.-> S9
+    W8 -.-> S10
+    W9 -.-> S7
+    W10 -.-> S8
+    W11 -.-> S7
+    S1 -.-> R1
+    S2 -.-> R2
+    S2 -.-> R3
+    S2 -.-> R4
+    S3 -.-> R5
+    S4 -.-> R5
+    S5 -.-> R5
+    S6 -.-> R6
+    S3 -.-> R6
+    S5 -.-> R7
+    S1 -.-> R8
+    S1 -.-> R9
+    S6 -.-> R9
+    S3 -.-> R9
+    S5 -.-> R9
+    S9 -.-> R9
+    S10 -.-> R9
+    S7 -.-> R10
+    S7 -.-> R11
+    S8 -.-> R11
+    S1 -.-> R11
+    S6 -.-> R11
+    S5 -.-> R11
+    S9 -.-> R11
+    S10 -.-> R11
+    S7 -.-> R12
+
+
+%% =============================================================================
+%% 图5：FastAPI 依赖注入链
+%% 展示从 HTTP 请求到 QueryService 的完整注入链
+%% =============================================================================
+
+graph TB
+    subgraph ENTRY["HTTP 请求入口"]
+        ROUTER["POST /api/query<br/>query_router.py"]
+        SCHEMA["QuerySchema<br/>query: str"]
+    end
+
+    subgraph DI["依赖注入层 dependencies.py"]
+        DI_QS["get_query_service()"]
+        DI_EMB["get_embedding_client()"]
+        DI_COL_Q["get_column_qdrant_repository()"]
+        DI_VAL_ES["get_value_es_repository()"]
+        DI_MET_Q["get_metric_qdrant_repository()"]
+        DI_META["get_meta_mysql_repository()"]
+        DI_DW["get_dw_mysql_repository()"]
+        DI_META_S["get_meta_session()"]
+        DI_DW_S["get_dw_session()"]
+    end
+
+    subgraph MANAGERS["客户端管理器 单例"]
+        EMB_MGR["embedding_client_manager<br/>EmbeddingClientManager"]
+        QD_MGR["qdrant_client_manager<br/>QdrantClientManager"]
+        ES_MGR["es_client_manager<br/>ESClientManager"]
+        META_MGR["meta_mysql_client_manager<br/>MysqlClientManager"]
+        DW_MGR["dw_mysql_client_manager<br/>MysqlClientManager"]
+    end
+
+    subgraph REPOS["Repository 实例"]
+        COL_Q_REPO["ColumnQdrantRepository<br/>client: AsyncQdrantClient"]
+        VAL_ES_REPO["ValueESRepository<br/>client: AsyncElasticsearch"]
+        MET_Q_REPO["MetricQdrantRepository<br/>client: AsyncQdrantClient"]
+        META_REPO_I["MetaMySQLRepository<br/>session: AsyncSession"]
+        DW_REPO_I["DWMySQLRepository<br/>session: AsyncSession"]
+    end
+
+    subgraph SVC["服务层"]
+        QS_I["QueryService<br/>query(query: str)"]
+    end
+
+    ROUTER --> SCHEMA
+    ROUTER --> DI_QS
+    DI_QS --> DI_EMB
+    DI_QS --> DI_COL_Q
+    DI_QS --> DI_VAL_ES
+    DI_QS --> DI_MET_Q
+    DI_QS --> DI_META
+    DI_QS --> DI_DW
+    DI_EMB --> EMB_MGR
+    DI_COL_Q --> QD_MGR
+    DI_VAL_ES --> ES_MGR
+    DI_MET_Q --> QD_MGR
+    DI_META --> DI_META_S
+    DI_DW --> DI_DW_S
+    DI_META_S --> META_MGR
+    DI_DW_S --> DW_MGR
+    DI_COL_Q --> COL_Q_REPO
+    DI_VAL_ES --> VAL_ES_REPO
+    DI_MET_Q --> MET_Q_REPO
+    DI_META --> META_REPO_I
+    DI_DW --> DW_REPO_I
+    DI_QS --> QS_I
+    QS_I --> COL_Q_REPO
+    QS_I --> VAL_ES_REPO
+    QS_I --> MET_Q_REPO
+    QS_I --> META_REPO_I
+    QS_I --> DW_REPO_I
+
+    classDef router fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    classDef di fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    classDef mgr fill:#fff8e1,stroke:#f9a825,stroke-width:2px
+    classDef repo fill:#e8eaf6,stroke:#3949ab,stroke-width:2px
+    classDef svc fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+
+    class ROUTER,SCHEMA router
+    class DI_QS,DI_EMB,DI_COL_Q,DI_VAL_ES,DI_MET_Q,DI_META,DI_DW,DI_META_S,DI_DW_S di
+    class EMB_MGR,QD_MGR,ES_MGR,META_MGR,DW_MGR mgr
+    class COL_Q_REPO,VAL_ES_REPO,MET_Q_REPO,META_REPO_I,DW_REPO_I repo
+    class QS_I svc
+
+
+%% =============================================================================
+%% 图6：元知识构建流程
+%% 展示 startup 时如何将配置同步到三大存储引擎
+%% =============================================================================
+
+graph TB
+    START_BUILD((启动构建)) --> LOAD_CONF["加载 meta_config.yaml<br/>OmegaConf.to_object()"]
+
+    LOAD_CONF --> CHK_TABLE{"有表配置?"}
+    CHK_TABLE -->|是| SAVE_TABLE["保存表/字段到 Meta MySQL<br/>MetaMySQLRepository.save_table_infos()<br/>MetaMySQLRepository.save_column_infos()"]
+    CHK_TABLE -->|否| CHK_METRIC
+
+    SAVE_TABLE --> QD_COL["字段向量化到 Qdrant<br/>name/description/alias 各自 Embedding<br/>ColumnQdrantRepository.upsert()"]
+    QD_COL --> ES_VAL["字段取值到 Elasticsearch<br/>sync=true 的字段建倒排索引<br/>ValueESRepository.index()"]
+    ES_VAL --> CHK_METRIC{"有指标配置?"}
+
+    CHK_METRIC -->|是| SAVE_METRIC["保存指标到 Meta MySQL<br/>MetaMySQLRepository.save_metric_infos()<br/>MetaMySQLRepository.save_column_metrics()"]
+    CHK_METRIC -->|否| DONE
+
+    SAVE_METRIC --> QD_METRIC["指标向量化到 Qdrant<br/>name/description/alias 各自 Embedding<br/>MetricQdrantRepository.upsert()"]
+    QD_METRIC --> DONE((构建完成))
+
+    subgraph STORAGE["三大存储引擎"]
+        META_DB[("Meta MySQL<br/>结构化元数据")]
+        QDRANT_DB[("Qdrant<br/>向量索引")]
+        ES_DB[("Elasticsearch<br/>全文索引")]
+    end
+
+    SAVE_TABLE -.-> META_DB
+    SAVE_METRIC -.-> META_DB
+    QD_COL -.-> QDRANT_DB
+    QD_METRIC -.-> QDRANT_DB
+    ES_VAL -.-> ES_DB
+
+    classDef build fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    classDef storage fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+
+    class START_BUILD,LOAD_CONF,SAVE_TABLE,QD_COL,ES_VAL,SAVE_METRIC,QD_METRIC,DONE build
+    class META_DB,QDRANT_DB,ES_DB storage
+
+
+%% =============================================================================
+%% 图7：两阶段召回策略
+%% 展示 Recall Column 的完整流程
+%% =============================================================================
+
+graph TB
+    subgraph S1["阶段1: 关键词生成"]
+        Q["用户查询<br/>统计去年各地区的销售总额"]
+        JIEBA["jieba 分词<br/>统计, 去年, 地区, 销售, 总额"]
+        LLM_KW["LLM 语义扩展<br/>Prompt: 字段推断专家<br/>年份, 地区名称, 销售金额, 订单总额"]
+    end
+
+    Q --> JIEBA
+    Q --> LLM_KW
+
+    subgraph S2["阶段2: 向量检索"]
+        KW_MERGE["合并关键词<br/>jieba U LLM 取并集"]
+        EMB["Embedding 向量化<br/>HuggingFaceEndpointEmbeddings.aembed_documents()"]
+        QD_SEARCH["Qdrant 向量检索<br/>ColumnQdrantRepository.search()<br/>Top-5 per keyword<br/>score_threshold=0.1"]
+    end
+
+    JIEBA --> KW_MERGE
+    LLM_KW --> KW_MERGE
+    KW_MERGE --> EMB
+    EMB --> QD_SEARCH
+
+    subgraph S3["阶段3: 后处理"]
+        DEDUP["去重<br/>dict[column_id] 同字段多条记录只保留一条"]
+        RANK["隐式排序<br/>Qdrant score 降序<br/>高相似度字段优先"]
+    end
+
+    QD_SEARCH --> DEDUP
+    DEDUP --> RANK
+    RANK --> RESULT["召回结果 list[ColumnInfo]"]
+
+    classDef stage1 fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef stage2 fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    classDef stage3 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+
+    class Q,JIEBA,LLM_KW stage1
+    class KW_MERGE,EMB,QD_SEARCH stage2
+    class DEDUP,RANK,RESULT stage3
+
+
+%% =============================================================================
+%% 图8：Embedding 多维度向量化策略
+%% 展示每个字段如何生成多条向量记录
+%% =============================================================================
+
+graph LR
+    subgraph SRC["原始数据 ColumnInfo"]
+        CI["字段: order_amount<br/>描述: 订单金额<br/>别名: 销售额, 成交额"]
+    end
+
+    subgraph VEC["向量化 4条向量记录"]
+        V1["向量1: order_amount<br/>字段名精确匹配"]
+        V2["向量2: 订单金额<br/>描述语义匹配"]
+        V3["向量3: 销售额<br/>别名1覆盖"]
+        V4["向量4: 成交额<br/>别名2覆盖"]
+    end
+
+    subgraph QDRANT["Qdrant Collection"]
+        QC["data-agent-column<br/>VectorConfig: Cosine距离<br/>尺寸: 1024维"]
+    end
+
+    subgraph EFFECT["检索效果"]
+        R1["查询 卖了多少钱<br/>匹配 订单金额"]
+        R2["查询 成交额排行<br/>匹配 成交额"]
+        R3["查询 order_amount统计<br/>匹配 order_amount"]
+    end
+
+    CI --> V1
+    CI --> V2
+    CI --> V3
+    CI --> V4
+    V1 --> QC
+    V2 --> QC
+    V3 --> QC
+    V4 --> QC
+    QC --> R1
+    QC --> R2
+    QC --> R3
+
+    classDef src fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef vec fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    classDef qdrant fill:#e8eaf6,stroke:#3949ab,stroke-width:2px
+    classDef effect fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+
+    class CI src
+    class V1,V2,V3,V4 vec
+    class QC qdrant
+    class R1,R2,R3 effect

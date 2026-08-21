@@ -1,0 +1,44 @@
+%% 图8：Embedding 多维度向量化策略 - 展示每个字段如何生成多条向量记录
+graph LR
+    subgraph SRC["原始数据 ColumnInfo"]
+        CI["字段: order_amount<br/>描述: 订单金额<br/>别名: 销售额, 成交额"]
+    end
+
+    subgraph VEC["向量化 4条向量记录"]
+        V1["向量1: order_amount<br/>字段名精确匹配"]
+        V2["向量2: 订单金额<br/>描述语义匹配"]
+        V3["向量3: 销售额<br/>别名1覆盖"]
+        V4["向量4: 成交额<br/>别名2覆盖"]
+    end
+
+    subgraph QDRANT["Qdrant Collection"]
+        QC["data-agent-column<br/>VectorConfig: Cosine距离<br/>尺寸: 1024维"]
+    end
+
+    subgraph EFFECT["检索效果"]
+        R1["查询 卖了多少钱<br/>匹配 订单金额"]
+        R2["查询 成交额排行<br/>匹配 成交额"]
+        R3["查询 order_amount统计<br/>匹配 order_amount"]
+    end
+
+    CI --> V1
+    CI --> V2
+    CI --> V3
+    CI --> V4
+    V1 --> QC
+    V2 --> QC
+    V3 --> QC
+    V4 --> QC
+    QC --> R1
+    QC --> R2
+    QC --> R3
+
+    classDef src fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef vec fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    classDef qdrant fill:#e8eaf6,stroke:#3949ab,stroke-width:2px
+    classDef effect fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+
+    class CI src
+    class V1,V2,V3,V4 vec
+    class QC qdrant
+    class R1,R2,R3 effect

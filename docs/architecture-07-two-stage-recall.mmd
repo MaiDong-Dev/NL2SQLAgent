@@ -1,0 +1,38 @@
+%% 图7：两阶段召回策略 - 展示 Recall Column 的完整流程
+graph TB
+    subgraph S1["阶段1: 关键词生成"]
+        Q["用户查询<br/>统计去年各地区的销售总额"]
+        JIEBA["jieba 分词<br/>统计, 去年, 地区, 销售, 总额"]
+        LLM_KW["LLM 语义扩展<br/>Prompt: 字段推断专家<br/>年份, 地区名称, 销售金额, 订单总额"]
+    end
+
+    Q --> JIEBA
+    Q --> LLM_KW
+
+    subgraph S2["阶段2: 向量检索"]
+        KW_MERGE["合并关键词<br/>jieba U LLM 取并集"]
+        EMB["Embedding 向量化<br/>HuggingFaceEndpointEmbeddings.aembed_documents()"]
+        QD_SEARCH["Qdrant 向量检索<br/>ColumnQdrantRepository.search()<br/>Top-5 per keyword<br/>score_threshold=0.1"]
+    end
+
+    JIEBA --> KW_MERGE
+    LLM_KW --> KW_MERGE
+    KW_MERGE --> EMB
+    EMB --> QD_SEARCH
+
+    subgraph S3["阶段3: 后处理"]
+        DEDUP["去重<br/>dict[column_id] 同字段多条记录只保留一条"]
+        RANK["隐式排序<br/>Qdrant score 降序<br/>高相似度字段优先"]
+    end
+
+    QD_SEARCH --> DEDUP
+    DEDUP --> RANK
+    RANK --> RESULT["召回结果 list[ColumnInfo]"]
+
+    classDef stage1 fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef stage2 fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    classDef stage3 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+
+    class Q,JIEBA,LLM_KW stage1
+    class KW_MERGE,EMB,QD_SEARCH stage2
+    class DEDUP,RANK,RESULT stage3

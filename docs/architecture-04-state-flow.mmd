@@ -1,0 +1,84 @@
+%% 图4：State 字段流转图 - 展示 DataAgentState 中每个字段在哪个节点写入、哪个节点读取
+graph TB
+    subgraph STATE_FIELDS["DataAgentState 字段"]
+        S1["query 用户查询"]
+        S2["keywords 关键词列表"]
+        S3["column_infos 字段信息"]
+        S4["value_infos 字段取值"]
+        S5["metric_infos 指标信息"]
+        S6["table_infos 表信息"]
+        S7["sql 生成的SQL"]
+        S8["error SQL错误"]
+        S9["date_info 日期上下文"]
+        S10["db_info 数据库环境"]
+    end
+
+    subgraph WRITE["写入节点"]
+        W1["extract_keywords to keywords"]
+        W2["recall_column to column_infos"]
+        W3["recall_value to value_infos"]
+        W4["recall_metric to metric_infos"]
+        W5["merge_retrieved_info to table_infos + column_infos补全"]
+        W6["filter_table to table_infos裁剪 + column_infos裁剪"]
+        W7["filter_metric to metric_infos裁剪"]
+        W8["add_extra_context to date_info + db_info"]
+        W9["generate_sql to sql"]
+        W10["validate_sql to error"]
+        W11["correct_sql to sql修正"]
+    end
+
+    subgraph READ["读取节点"]
+        R1["extract_keywords 读 query"]
+        R2["recall_column 读 keywords"]
+        R3["recall_value 读 keywords"]
+        R4["recall_metric 读 keywords"]
+        R5["merge_retrieved_info 读 column_infos,value_infos,metric_infos"]
+        R6["filter_table 读 table_infos,column_infos"]
+        R7["filter_metric 读 metric_infos"]
+        R8["add_extra_context 读 query"]
+        R9["generate_sql 读 query,table_infos,column_infos,metric_infos,date_info,db_info"]
+        R10["validate_sql 读 sql"]
+        R11["correct_sql 读 sql,error,query,table_infos,metric_infos,date_info,db_info"]
+        R12["execute_sql 读 sql"]
+    end
+
+    W1 -.-> S2
+    W2 -.-> S3
+    W3 -.-> S4
+    W4 -.-> S5
+    W5 -.-> S6
+    W5 -.-> S3
+    W6 -.-> S6
+    W6 -.-> S3
+    W7 -.-> S5
+    W8 -.-> S9
+    W8 -.-> S10
+    W9 -.-> S7
+    W10 -.-> S8
+    W11 -.-> S7
+    S1 -.-> R1
+    S2 -.-> R2
+    S2 -.-> R3
+    S2 -.-> R4
+    S3 -.-> R5
+    S4 -.-> R5
+    S5 -.-> R5
+    S6 -.-> R6
+    S3 -.-> R6
+    S5 -.-> R7
+    S1 -.-> R8
+    S1 -.-> R9
+    S6 -.-> R9
+    S3 -.-> R9
+    S5 -.-> R9
+    S9 -.-> R9
+    S10 -.-> R9
+    S7 -.-> R10
+    S7 -.-> R11
+    S8 -.-> R11
+    S1 -.-> R11
+    S6 -.-> R11
+    S5 -.-> R11
+    S9 -.-> R11
+    S10 -.-> R11
+    S7 -.-> R12

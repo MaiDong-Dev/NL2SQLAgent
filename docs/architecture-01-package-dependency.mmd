@@ -1,0 +1,136 @@
+%% 图1：包级依赖关系图（Package Dependency Graph） - 展示各顶层包的 import 方向
+graph TB
+    subgraph "入口层"
+        API["api<br/>FastAPI 路由 + 依赖注入"]
+        SCRIPTS["scripts<br/>命令行脚本入口"]
+    end
+
+    subgraph "服务层"
+        QS["services/query_service<br/>QueryService<br/>查询入口, 组装Context/State"]
+        MKS["services/meta_knowledge_service<br/>MetaKnowledgeService<br/>元知识构建, 同步三大存储"]
+    end
+
+    subgraph "Agent 层"
+        GRAPH["agent/graph<br/>LangGraph 工作流定义"]
+        NODES["agent/nodes/*<br/>13个 Pipeline 节点"]
+        STATE["agent/state<br/>DataAgentState"]
+        CTX["agent/context<br/>DataAgentContext"]
+        LLM["agent/llm<br/>ChatOpenAI 初始化"]
+    end
+
+    subgraph "提示词层"
+        PROMPT["prompt/prompt_loader<br/>PromptLoader<br/>Jinja2模板加载"]
+    end
+
+    subgraph "仓库层"
+        META_REPO["repositories/mysql/meta<br/>MetaMySQLRepository"]
+        DW_REPO["repositories/mysql/dw<br/>DWMySQLRepository"]
+        COL_QDRANT["repositories/qdrant/column<br/>ColumnQdrantRepository"]
+        MET_QDRANT["repositories/qdrant/metric<br/>MetricQdrantRepository"]
+        VAL_ES["repositories/es/value<br/>ValueESRepository"]
+    end
+
+    subgraph "实体层"
+        ENTITIES["entities/*<br/>ColumnInfo, TableInfo<br/>MetricInfo, ValueInfo<br/>ColumnMetric"]
+    end
+
+    subgraph "模型层"
+        MODELS["models/*<br/>ColumnInfoMySQL<br/>TableInfoMySQL<br/>MetricInfoMySQL<br/>ColumnMetricMySQL"]
+        BASE["models/base<br/>DeclarativeBase"]
+    end
+
+    subgraph "客户端层"
+        EMB_CLIENT["clients/embedding<br/>EmbeddingClientManager<br/>HuggingFace TEI"]
+        QD_CLIENT["clients/qdrant<br/>QdrantClientManager<br/>AsyncQdrantClient"]
+        ES_CLIENT["clients/es<br/>ESClientManager<br/>AsyncElasticsearch"]
+        MYSQL_CLIENT["clients/mysql<br/>MysqlClientManager<br/>AsyncSession"]
+    end
+
+    subgraph "配置层"
+        APP_CONF["conf/app_config<br/>AppConfig<br/>DB/Qdrant/ES/LLM/Embedding"]
+        META_CONF["conf/meta_config<br/>MetaConfig<br/>表/字段/指标定义"]
+        LOADER["conf/config_loader<br/>OmegaConf 加载器"]
+    end
+
+    subgraph "核心层"
+        LOG["core/log<br/>loguru 日志"]
+        LIFESPAN["core/lifespan<br/>FastAPI 生命周期"]
+        REQ_CTX["core/context<br/>request_id ContextVar"]
+    end
+
+    API --> QS
+    API --> STATE
+    SCRIPTS --> MKS
+    QS --> GRAPH
+    QS --> STATE
+    QS --> CTX
+    QS --> EMB_CLIENT
+    QS --> COL_QDRANT
+    QS --> VAL_ES
+    QS --> MET_QDRANT
+    QS --> META_REPO
+    QS --> DW_REPO
+    MKS --> META_CONF
+    MKS --> EMB_CLIENT
+    MKS --> COL_QDRANT
+    MKS --> VAL_ES
+    MKS --> MET_QDRANT
+    MKS --> META_REPO
+    MKS --> DW_REPO
+    MKS --> ENTITIES
+    GRAPH --> NODES
+    NODES --> STATE
+    NODES --> CTX
+    NODES --> LLM
+    NODES --> PROMPT
+    NODES --> EMB_CLIENT
+    NODES --> COL_QDRANT
+    NODES --> VAL_ES
+    NODES --> MET_QDRANT
+    NODES --> META_REPO
+    NODES --> DW_REPO
+    NODES --> ENTITIES
+    LLM --> APP_CONF
+    COL_QDRANT --> QD_CLIENT
+    COL_QDRANT --> ENTITIES
+    MET_QDRANT --> QD_CLIENT
+    MET_QDRANT --> ENTITIES
+    VAL_ES --> ES_CLIENT
+    VAL_ES --> ENTITIES
+    META_REPO --> MYSQL_CLIENT
+    META_REPO --> ENTITIES
+    META_REPO --> MODELS
+    DW_REPO --> MYSQL_CLIENT
+    MODELS --> BASE
+    QD_CLIENT --> APP_CONF
+    ES_CLIENT --> APP_CONF
+    MYSQL_CLIENT --> APP_CONF
+    EMB_CLIENT --> APP_CONF
+    LIFESPAN --> EMB_CLIENT
+    LIFESPAN --> QD_CLIENT
+    LIFESPAN --> ES_CLIENT
+    LIFESPAN --> MYSQL_CLIENT
+    LOADER --> APP_CONF
+    META_CONF --> LOADER
+
+    classDef api fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    classDef service fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    classDef agent fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef prompt fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef repo fill:#e8eaf6,stroke:#3949ab,stroke-width:2px
+    classDef entity fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef model fill:#ede7f6,stroke:#512da8,stroke-width:2px
+    classDef client fill:#fff8e1,stroke:#f9a825,stroke-width:2px
+    classDef conf fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+    classDef core fill:#efebe9,stroke:#5d4037,stroke-width:2px
+
+    class API,SCRIPTS api
+    class QS,MKS service
+    class GRAPH,NODES,STATE,CTX,LLM agent
+    class PROMPT prompt
+    class META_REPO,DW_REPO,COL_QDRANT,MET_QDRANT,VAL_ES repo
+    class ENTITIES entity
+    class MODELS,BASE model
+    class EMB_CLIENT,QD_CLIENT,ES_CLIENT,MYSQL_CLIENT client
+    class APP_CONF,META_CONF,LOADER conf
+    class LOG,LIFESPAN,REQ_CTX core
