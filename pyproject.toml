@@ -1,7 +1,8 @@
 [project]
 name = "data-agent"
 version = "0.1.0"
-description = "Add your description here"
+description = "NL2SQL RAG Agent：基于 LangGraph 的元数据增强 Text-to-SQL 问数系统"
+readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "asyncmy>=0.2.11",
@@ -20,4 +21,17 @@ dependencies = [
     "qdrant-client>=1.16.2",
     "ragas>=0.4.3",
     "sqlalchemy>=2.0.46",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+markers = [
+    "integration: 需要真实中间件（MySQL / ES / Qdrant / Embedding）的集成测试",
 ]

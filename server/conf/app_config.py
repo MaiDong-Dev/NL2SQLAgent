@@ -141,6 +141,13 @@ config_file = Path(__file__).parents[2] / 'conf' / 'app_config.yaml'
 # 加载配置文件并反序列化为 AppConfig 实例（模块级单例）
 # OmegaConf.structured 会依据 AppConfig 的 dataclass 定义生成 schema，
 # 用于校验 yaml 中的字段是否完整、类型是否匹配。
+if not config_file.exists():
+    raise FileNotFoundError(
+        f"未找到应用配置文件：{config_file}\n"
+        f"请先复制模板：cp conf/app_config.example.yaml conf/app_config.yaml\n"
+        f"（该文件含明文密码，已在 .gitignore 中，不会被提交）"
+    )
+
 context = OmegaConf.load(config_file)          # 读取 yaml 原始内容
 schema = OmegaConf.structured(AppConfig)       # 生成结构化 schema
 app_config: AppConfig = OmegaConf.to_object(OmegaConf.merge(schema, context))  # 合并并反序列化

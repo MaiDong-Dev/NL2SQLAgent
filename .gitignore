@@ -11,10 +11,13 @@ dist/
 venv/
 env/
 
-# 密钥与本地配置（绝不入库）
+# 密钥与本地真实配置（绝不入库）
 .env
 .env.*
 !.env.example
+# 本地真实配置：密码/密钥直接写在这里，文件本身不提交
+# 新环境复制 conf/app_config.example.yaml → conf/app_config.yaml 即可运行
+conf/app_config.yaml
 
 # 日志
 logs/
