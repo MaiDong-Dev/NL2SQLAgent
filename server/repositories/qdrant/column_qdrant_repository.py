@@ -1,0 +1,96 @@
+# =============================================================================
+# 【向量检索模块】字段向量库 Repository
+# 作用：封装 Qdrant 向量数据库的 CRUD 操作，专门管理「数据表字段」的向量索引。
+#       存储字段名、字段描述、别名三种文本的 Embedding 向量，支持通过向量相似度
+#       搜索召回与用户查询语义最相关的字段。
+# 上下文传递：被 DataAgentContext 携带，在 recall_column 节点中注入使用。
+# =============================================================================
+
+from dataclasses import asdict
+
+from qdrant_client import AsyncQdrantClient
+from qdrant_client.models import VectorParams, Distance, PointStruct
+
+from server.conf.app_config import app_config
+from server.entities.column_info import ColumnInfo
+
+
+class ColumnQdrantRepository:
+    """字段向量索引仓库
+    
+    职责：
+    - 管理名为 'data-agent-column' 的 Qdrant Collection
+    - 将字段的 Embedding 向量写入 Qdrant，为后续语义检索建立索引
+    - 提供向量相似度搜索接口，召回与查询关键词最相关的 Top-K 字段
+    
+    向量化策略（多维度覆盖）：
+    每个字段会生成 3 条向量记录，分别对应：
+      1. 字段名（如 "order_amount"）       → 精确匹配
+      2. 字段描述（如 "订单金额"）           → 语义匹配
+      3. 字段别名（如 ["销售额", "成交额"]） → 别名覆盖
+    这样设计是为了从多个语义角度覆盖同一字段，提高召回率。
+    
+    召回策略：
+    - 距离度量：余弦相似度（Cosine Distance），适合文本语义相似度比较
+    - 分数阈值：score_threshold=0.6，过滤低相关度的噪音结果
+    - 返回数量：limit=5，每个关键词最多召回 5 个最相关字段
+    """
+
+    # Qdrant 中的 Collection 名称，用于隔离不同业务的数据
+    collection_name: str = 'data-agent-column'
+
+    def __init__(self, client: AsyncQdrantClient):
+        self.client = client
+
+    async def ensure_collection(self):
+        """确保 Collection 存在，不存在则自动创建
+        
+        创建参数说明：
+        - vectors_config: 指定向量维度（从配置读取 embedding_size），
+          维度必须与 Embedding 模型输出维度一致
+        - distance: 使用 Cosine 距离，值域 [0, 2]，0 表示完全相同
+        """
+        if not await self.client.collection_exists(self.collection_name):
+            await self.client.create_collection(self.collection_name,
+                                                vectors_config=VectorParams(size=app_config.qdrant.embedding_size,
+                                                                            distance=Distance.COSINE))
+
+    async def upsert(self, ids: list[str], embeddings: list[list[float]], payloads: list[ColumnInfo],
+                     batch_size: int = 20):
+        """批量写入/更新向量数据（支持分批上传）
+        
+        参数：
+        - ids: 每条记录的唯一标识，用于后续覆盖更新
+        - embeddings: 文本对应的 Embedding 向量列表
+        - payloads: 每条向量附带的结构化元数据（ColumnInfo），
+          检索命中后可直接还原为业务对象
+        - batch_size: 分批大小，避免单次上传数据量过大
+        """
+        zipped = list(zip(ids, embeddings, payloads))
+        for i in range(0, len(zipped), batch_size):
+            batch = zipped[i:i + batch_size]
+            batch_points = [PointStruct(id=id, vector=embedding, payload=asdict(payload)) for id, embedding, payload in
+                            batch]
+            await self.client.upsert(collection_name=self.collection_name, points=batch_points)
+
+    async def search(self, embedding: list[float],
+                     limit: int = app_config.recall.column_search_limit) -> list[tuple[ColumnInfo, float]]:
+        """向量相似度搜索——根据查询向量召回最相关的字段及其相似度
+
+        参数：
+        - embedding: 用户查询关键词的 Embedding 向量
+        - limit: 返回的最大结果数（默认取配置 recall.column_search_limit）
+
+        返回：
+        - [(ColumnInfo, score)]：payload 反序列化出的字段实体 + 余弦相似度，
+          按相似度降序。同一字段在库中有 name/description/alias 多条向量，
+          会在结果中重复出现（分数不同），由调用方按字段取最高分去重。
+
+        为什么不在这里做阈值过滤？
+          实测正确字段与噪音字段的绝对分数高度交错，固定阈值无法区分；
+          降噪改由调用方用「相对阈值」（相对本次最高分）处理，见 recall_column。
+        """
+        result = await self.client.query_points(collection_name=self.collection_name,
+                                                query=embedding,
+                                                limit=limit)
+        return [(ColumnInfo(**point.payload), point.score) for point in result.points]

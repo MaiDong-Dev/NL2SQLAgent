@@ -1,0 +1,12 @@
+﻿query,predicted_sql,reference_sql,retrieved_ids,reference_ids,linking_precision,linking_recall,sql_equivalence,sql_equivalence_reason,execution_accuracy,execution_reason
+统计各大区的销售总额,"SELECT dr.region_name, SUM(fo.order_amount) AS total_sales
+FROM dim_region dr
+LEFT JOIN fact_order fo ON dr.region_id = fo.region_id
+GROUP BY dr.region_name;","SELECT r.region_name, SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_region r ON f.region_id = r.region_id GROUP BY r.region_name",dim_region.region_id|dim_region.region_name|fact_order.order_amount|fact_order.order_quantity|fact_order.region_id,fact_order.order_amount|fact_order.region_id|dim_region.region_id|dim_region.region_name,0.8,1.0,0.0,"Response: The generated SQL query selects region names from dim_region and computes the sum of order_amount from fact_order using a LEFT JOIN from dim_region to fact_order. It groups by region_name. Because it is a LEFT JOIN, it includes every region from dim_region, even regions with no matching orders, which would produce a NULL sum for those regions.
+Reference: The reference SQL query selects region names from dim_region and computes the sum of order_amount from fact_order using an inner JOIN from fact_order to dim_region. It groups by region_name. Because it is an inner join, it includes only regions that have at least one matching order in fact_order.",correct,数据一致但列名不同（5 行）
+2025年每个月的订单量是多少,"SELECT LEFT(date_id, 6) AS month, COUNT(*) AS order_count
+FROM fact_order
+WHERE date_id BETWEEN 20250101 AND 20251231
+GROUP BY LEFT(date_id, 6)
+ORDER BY month;","SELECT d.month, COUNT(f.order_id) AS order_count FROM fact_order f JOIN dim_date d ON f.date_id = d.date_id WHERE d.year = 2025 GROUP BY d.month",dim_date.date_id|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity,fact_order.order_id|fact_order.date_id|dim_date.date_id|dim_date.year|dim_date.month,0.6,0.6,0.0,"Response: The generated query selects LEFT(date_id, 6) as month and counts all rows from fact_order where date_id is between 20250101 and 20251231, grouping by the extracted six-character prefix and ordering by month.
+Reference: The reference query joins fact_order to dim_date on date_id, filters dim_date.year to 2025, and counts non-null fact_order.order_id per d.month, grouping by d.month.",incorrect,"结果不一致：预期 3 行 / 实际 3 行；预期首行=[(('month', 1), ('order_count', 40))] 实际首行=[(('month', '202501'), ('order_count', 40))]"

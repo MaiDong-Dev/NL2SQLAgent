@@ -1,0 +1,6 @@
+﻿query,predicted_sql,reference_sql,retrieved_ids,reference_ids,linking_precision,linking_recall,sql_equivalence,sql_equivalence_reason,execution_accuracy,execution_reason
+统计各大区的销售总额,"SELECT r.region_name AS 大区, SUM(o.order_amount) AS 销售总额
+FROM fact_order o
+JOIN dim_region r ON o.region_id = r.region_id
+GROUP BY r.region_name;","SELECT r.region_name, SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_region r ON f.region_id = r.region_id GROUP BY r.region_name",dim_region.region_id|dim_region.region_name|fact_order.order_amount|fact_order.order_quantity|fact_order.region_id,fact_order.order_amount|fact_order.region_id|dim_region.region_id|dim_region.region_name,0.8,1.0,1.0,"Response: The generated SQL query selects the region name from dim_region with alias 大区 and the sum of order amount from fact_order with alias 销售总额. It joins fact_order using alias o to dim_region using alias r on region_id and groups results by region_name.
+Reference: The reference SQL query selects the region name and the sum of order amount as total_amount. It joins fact_order using alias f to dim_region using alias r on region_id and groups results by region_name.",correct,数据一致但列名不同（5 行）

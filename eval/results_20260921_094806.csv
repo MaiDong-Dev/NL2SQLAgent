@@ -1,0 +1,14 @@
+﻿query,predicted_sql,reference_sql,retrieved_ids,reference_ids,linking_precision,linking_recall,sql_equivalence,sql_equivalence_reason,jev_equivalence,jev_probability,jev_reason,execution_accuracy,execution_reason
+统计各大区的销售总额,"SELECT dr.region_name AS 大区, SUM(fo.order_amount) AS 销售总额
+FROM fact_order fo
+JOIN dim_region dr ON fo.region_id = dr.region_id
+GROUP BY dr.region_name
+ORDER BY 销售总额 DESC;","SELECT r.region_name, SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_region r ON f.region_id = r.region_id GROUP BY r.region_name",dim_date.month|dim_product.category|dim_region.country|dim_region.province|dim_region.region_id|dim_region.region_name|fact_order.order_amount|fact_order.order_quantity|fact_order.region_id,fact_order.order_amount|fact_order.region_id|dim_region.region_id|dim_region.region_name,0.4444444444444444,1.0,1.0,"Response: The generated SQL query joins fact_order to dim_region on region_id, groups by region_name, computes SUM of order_amount as 销售总额, aliases region_name as 大区, and orders the result by 销售总额 descending.
+Reference: The reference SQL query joins fact_order to dim_region on region_id, groups by region_name, and computes SUM of order_amount as total_amount.",1.0,0.94,Jev 判定等价（总体概率 0.94）,correct,数据一致但列名不同（5 行）
+2025年每个月的订单量是多少,"SELECT d.month AS `月份`, COUNT(f.order_id) AS `订单量`
+FROM fact_order f
+JOIN dim_date d ON f.date_id = d.date_id
+WHERE d.year = 2025
+GROUP BY d.month
+ORDER BY d.month;","SELECT d.month, COUNT(f.order_id) AS order_count FROM fact_order f JOIN dim_date d ON f.date_id = d.date_id WHERE d.year = 2025 GROUP BY d.month",dim_date.date_id|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity,fact_order.order_id|fact_order.date_id|dim_date.date_id|dim_date.year|dim_date.month,0.6,0.6,1.0,"Response: The generated SQL query joins fact_order with dim_date on date_id, filters for year 2025, groups by month, and counts order_id values per month. It returns the month and the order count, with Chinese aliases and an added ORDER BY d.month.
+Reference: The reference SQL query joins fact_order with dim_date on date_id, filters for year 2025, groups by month, and counts order_id values per month. It returns d.month and the order count aliased as order_count.",1.0,0.96,Jev 判定等价（总体概率 0.96）,correct,数据一致但列名不同（3 行）
