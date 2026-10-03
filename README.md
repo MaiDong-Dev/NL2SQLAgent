@@ -73,7 +73,7 @@ cd deploy && docker compose up -d
 
 ```bash
 uv sync
-uv run python -m meta_builder.scripts.build_meta_knowledge   # 表/字段/指标同步到 MySQL+Qdrant+ES
+uv run python -m meta_builder.scripts.build_meta_knowledge -c conf/meta_config.yaml   # 表/字段/指标同步到 MySQL+Qdrant+ES（-c 必填）
 ```
 
 ### 4. 启动服务

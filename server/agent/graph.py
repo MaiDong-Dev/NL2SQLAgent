@@ -128,9 +128,14 @@ graph_builder.add_edge("generate_sql", "validate_sql")
 # 条件边：根据 validate_sql 的结果决定下一步
 #   - error 为 None（验证通过）→ 执行 SQL
 #   - error 不为 None（验证失败）→ 进入 SQL 校正流程
-graph_builder.add_conditional_edges("validate_sql",
-                                    lambda state: "execute_sql" if state["error"] is None else "correct_sql",
-                                    {"execute_sql": "execute_sql", "correct_sql": "correct_sql"})
+graph_builder.add_conditional_edges(
+    "validate_sql",
+    lambda state: "execute_sql" if state["error"] is None else "correct_sql",
+    {
+        "execute_sql": "execute_sql",
+        "correct_sql": "correct_sql"
+    }
+)
 
 # --- 阶段6：SQL 校正 → 执行 → 结束 ---
 graph_builder.add_edge("correct_sql", "execute_sql")
@@ -141,32 +146,34 @@ graph = graph_builder.compile()
 
 
 if __name__ == '__main__':
-    async def test():
-        lifespan()
+    #async def test():
+    #    lifespan()
+#
+    #    async with meta_mysql_client_manager.session_factory() as meta_session, dw_mysql_client_manager.session_factory() as dw_session:
+    #        meta_mysql_repository = MetaMySQLRepository(meta_session)
+    #        dw_mysql_repository = DWMySQLRepository(dw_session)
+    #        column_qdrant_repository = ColumnQdrantRepository(qdrant_client_manager.client)
+    #        value_es_repository = ValueESRepository(es_client_manager.client)
+    #        metric_qdrant_repository = MetricQdrantRepository(qdrant_client_manager.client)
+#
+    #        context = DataAgentContext(
+    #            embedding_client=embedding_client_manager.client,
+    #            column_qdrant_repository=column_qdrant_repository,
+    #            value_es_repository=value_es_repository,
+    #            metric_qdrant_repository=metric_qdrant_repository,
+    #            meta_mysql_repository=meta_mysql_repository,
+    #            dw_mysql_repository=dw_mysql_repository
+    #        )
+    #        state = DataAgentState(query="统计去年各地区的销售总额")
+    #        async for chunk in graph.astream(input=state, context=context, stream_mode="custom"):
+    #            print(chunk)
+#
+    #    await qdrant_client_manager.close()
+    #    await es_client_manager.close()
+    #    await meta_mysql_client_manager.close()
+    #    await dw_mysql_client_manager.close()
+#
+#
+    #asyncio.run(test())
 
-        async with meta_mysql_client_manager.session_factory() as meta_session, dw_mysql_client_manager.session_factory() as dw_session:
-            meta_mysql_repository = MetaMySQLRepository(meta_session)
-            dw_mysql_repository = DWMySQLRepository(dw_session)
-            column_qdrant_repository = ColumnQdrantRepository(qdrant_client_manager.client)
-            value_es_repository = ValueESRepository(es_client_manager.client)
-            metric_qdrant_repository = MetricQdrantRepository(qdrant_client_manager.client)
-
-            context = DataAgentContext(
-                embedding_client=embedding_client_manager.client,
-                column_qdrant_repository=column_qdrant_repository,
-                value_es_repository=value_es_repository,
-                metric_qdrant_repository=metric_qdrant_repository,
-                meta_mysql_repository=meta_mysql_repository,
-                dw_mysql_repository=dw_mysql_repository
-            )
-            state = DataAgentState(query="统计去年各地区的销售总额")
-            async for chunk in graph.astream(input=state, context=context, stream_mode="custom"):
-                print(chunk)
-
-        await qdrant_client_manager.close()
-        await es_client_manager.close()
-        await meta_mysql_client_manager.close()
-        await dw_mysql_client_manager.close()
-
-
-    asyncio.run(test())
+    print(graph.get_graph().draw_mermaid())

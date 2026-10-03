@@ -16,7 +16,7 @@
 #   jev_composite（原子合成的对照口径，实测不如总体判断，仅作参考）
 #
 # 用法（项目根目录）：
-#   set OPENROUTER_API_KEY=...                     # 必填
+#   密钥：conf/app_config.yaml → eval.judge.openrouter_api_key（留空时回退环境变量 OPENROUTER_API_KEY）
 #   python -m eval.jev_equivalence_judge                     # 默认取最新 results_*.csv
 #   python -m eval.jev_equivalence_judge --results eval/results_20260919_171653.csv
 #   python -m eval.jev_equivalence_judge --limit 10          # 冒烟

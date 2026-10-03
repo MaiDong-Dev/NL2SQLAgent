@@ -9,7 +9,7 @@
 #   请求体: {"model": "~typesafe/jev-latest", "state": str, "questions": {...}}
 #   响应体: {"model": ..., "answers": {"<key>": {"type": "noul", "noul": 0.97}, ...},
 #            "usage": {"input_tokens": 561, "output_tokens": 39, "cost": 0.0000235}}
-#   鉴权: 环境变量 OPENROUTER_API_KEY
+#   鉴权: conf/app_config.yaml 的 eval.judge.openrouter_api_key（留空时回退环境变量 OPENROUTER_API_KEY）
 #
 # 判定口径：**用单点总体概率，不用原子合成**。
 # 实测（63 条，见 09-评测报告.md 7.3 节）：总体判断 F1 0.984，而"6 个原子全部为是
@@ -22,6 +22,11 @@ import json
 import os
 
 import httpx
+
+try:  # 配置未就绪时（例如只设了环境变量的最小环境）不阻断，回退到环境变量取密钥
+    from server.conf.app_config import app_config
+except Exception:
+    app_config = None
 
 # OpenRouter 决策接口（alpha）
 DECISIONS_URL = "https://openrouter.ai/api/alpha/decisions"
@@ -36,6 +41,18 @@ REQUEST_TIMEOUT = 60
 
 # 原子维度（仅用于归因输出，不参与判定）
 ATOMIC_KEYS = ["same_tables", "same_agg", "same_filter", "same_group", "same_limit", "same_columns"]
+
+
+def resolve_api_key() -> str:
+    """Jev 鉴权密钥：优先 conf/app_config.yaml 的 eval.judge.openrouter_api_key，留空则回退环境变量
+
+    保留环境变量兜底的原因：早期 Jev 脚本只读 OPENROUTER_API_KEY，且临时环境/CI 里
+    未必有完整的 app_config.yaml（那里面还有 db/qdrant/es 等一整套必填项）。
+    """
+    key = ""
+    if app_config is not None:
+        key = getattr(app_config.eval.judge, "openrouter_api_key", "") or ""
+    return key or os.environ.get("OPENROUTER_API_KEY", "")
 
 
 def _noul(instructions: str, true: str, false: str) -> dict:
@@ -133,7 +150,7 @@ async def judge_equivalence(
     response = await client.post(
         DECISIONS_URL,
         headers={
-            "Authorization": f"Bearer {os.environ.get('OPENROUTER_API_KEY', '')}",
+            "Authorization": f"Bearer {resolve_api_key()}",
             "Content-Type": "application/json",
         },
         content=json.dumps(body, ensure_ascii=False).encode("utf-8"),

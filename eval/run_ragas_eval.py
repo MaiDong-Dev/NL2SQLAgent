@@ -28,9 +28,9 @@
 #   python -m eval.run_ragas_eval --judge ragas   # 切回 ragas（DeepSeek）裁判
 #   python -m eval.run_ragas_eval --judge both    # 两个裁判都跑，输出一致率
 #
-# 环境变量：
-#   OPENROUTER_API_KEY   --judge jev / both 时必填（Jev 经 OpenRouter 决策接口调用）
-#   DEEPSEEK_API_KEY     --judge ragas / both 时必填（走 app_config.llm 配置）
+# 密钥（两个来源任一即可）：
+#   Jev    conf/app_config.yaml → eval.judge.openrouter_api_key（留空时回退环境变量 OPENROUTER_API_KEY）
+#   ragas  走 app_config.llm 配置（其 api_key 默认取环境变量 DEEPSEEK_API_KEY）
 #
 # 产出：eval/results_<时间戳>.csv，每行一个用例的各指标得分与失败原因。
 # =============================================================================
@@ -52,6 +52,7 @@ from eval.jev_judge import (
     DEFAULT_THRESHOLD as JEV_DEFAULT_THRESHOLD,
     REQUEST_TIMEOUT as JEV_REQUEST_TIMEOUT,
     judge_equivalence,
+    resolve_api_key,
 )
 
 from ragas.dataset_schema import SingleTurnSample
@@ -389,9 +390,9 @@ async def main():
     args = parser.parse_args()
 
     # 裁判依赖的环境变量尽早失败，避免跑到一半才发现
-    if not args.skip_llm and args.judge in ("jev", "both") and not os.environ.get("OPENROUTER_API_KEY"):
-        raise SystemExit("需要环境变量 OPENROUTER_API_KEY（Jev 经 OpenRouter 调用）；"
-                         "或改用 --judge ragas / --skip-llm")
+    if not args.skip_llm and args.judge in ("jev", "both") and not resolve_api_key():
+        raise SystemExit("未拿到 Jev 密钥：请在 conf/app_config.yaml 配置 eval.judge.openrouter_api_key，"
+                         "或设置环境变量 OPENROUTER_API_KEY；也可改用 --judge ragas / --skip-llm")
 
     cases = [json.loads(line) for line in Path(args.dataset).read_text(encoding="utf-8").splitlines() if line.strip()]
     if args.limit:

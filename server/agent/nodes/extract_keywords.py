@@ -44,12 +44,12 @@ async def extract_keywords(state: DataAgentState, runtime: Runtime[DataAgentCont
         "i",  # 成语
         "l",  # 常用固定短语
     )
-
+    # 关键词抽取
     # 使用 jieba 的 TF-IDF 算法提取关键词
     # extract_tags 内部会计算 TF-IDF，自动过滤停用词和低权重词
     keywords = jieba.analyse.extract_tags(query, allowPOS=allow_pos)
 
-    # 去重 + 保留原始查询作为兜底关键词
+    # 去重 + 保留原始查询作为兜底关键词，确保不丢失关键信息（query）
     # 目的：即使 jieba 分词结果不理想，原始查询也能作为检索关键词
     keywords = list(set(keywords + [query]))
 

@@ -22,7 +22,7 @@
 # =============================================================================
 
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from omegaconf import OmegaConf
@@ -121,6 +121,20 @@ class LLMConfig:
 
 
 @dataclass
+class JudgeConfig:
+    """评测裁判配置（eval/ 下脚本使用的外部裁判密钥）"""
+    # Jev 裁判（~typesafe/jev-latest）经 OpenRouter 决策接口调用所需的密钥。
+    # 留空时回退到环境变量 OPENROUTER_API_KEY（兼容早期纯环境变量的用法）。
+    openrouter_api_key: str = ""
+
+
+@dataclass
+class EvalConfig:
+    """评测配置：聚合各裁判的连接参数"""
+    judge: JudgeConfig = field(default_factory=JudgeConfig)
+
+
+@dataclass
 class AppConfig:
     """应用总配置：聚合所有子模块配置"""
     logging: LoggingConfig      # 日志配置
@@ -131,6 +145,8 @@ class AppConfig:
     es: ESConfig                # Elasticsearch 配置
     recall: RecallConfig        # 召回阶段配置（向量检索降噪参数）
     llm: LLMConfig              # LLM 配置
+    # 评测配置：给默认值，使旧版 app_config.yaml（无 eval 段）仍能正常加载
+    eval: EvalConfig = field(default_factory=EvalConfig)
 
 
 # 定位 conf/app_config.yaml 配置文件路径

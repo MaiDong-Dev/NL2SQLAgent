@@ -21,5 +21,6 @@ llm = init_chat_model(model=app_config.llm.model_name,
 
 
 if __name__ == '__main__':
-    for chunk in llm.stream("What is the meaning of life?"):
+    t = "What is the meaning of life?"
+    for chunk in llm.stream(t):
         print(chunk.text)
