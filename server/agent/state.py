@@ -42,10 +42,17 @@ class MetricInfoState(TypedDict):
 
 
 class DateInfoState(TypedDict):
-    """日期上下文信息——帮助 LLM 理解"今天"、"本月"等相对时间"""
-    date: str
-    weekday: str
-    quarter: str
+    """时间上下文信息——既帮助 LLM 理解"今天"、"本月"等相对时间，
+    也告诉 LLM 数据实际覆盖的日期范围，避免它用系统当前年份去过滤历史数据。
+
+    为什么要有 data_range：用户问"1月份"而系统当前是 2026 年时，
+    LLM 会用当前年份补全成 `year = 2026`，而数据只到 2025 年底，必然查空。
+    这不是模型幻觉，是它拿到了一份不完整的前提——补上真实范围它才能推断正确。
+    """
+    date: str       # 系统当前日期，格式 YYYY-MM-DD
+    weekday: str    # 系统当前星期，英文全称
+    quarter: str    # 系统当前季度，Q1~Q4
+    data_range: dict  # 数据真实覆盖范围 {"start": "YYYY-MM-DD"|None, "end": "YYYY-MM-DD"|None}
 
 
 class DBInfoState(TypedDict):

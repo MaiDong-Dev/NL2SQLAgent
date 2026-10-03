@@ -44,7 +44,13 @@ async def correct_sql(state: DataAgentState, runtime: Runtime[DataAgentContext])
     try:
         # 组装校正 Prompt：包含原始查询 + 表结构 + 错误 SQL + 错误信息
         # 让 LLM 在充分理解上下文的基础上做精准修复
-        prompt = PromptTemplate(template=load_prompt("correct_sql"), input_variables=["query", "metric_infos"])
+        # input_variables 必须与模板占位符、下方实际传参三者一致（共 7 个），
+        # 少声明会让 LangChain 在格式化时缺失变量
+        prompt = PromptTemplate(
+            template=load_prompt("correct_sql"),
+            input_variables=["query", "table_infos", "metric_infos",
+                             "date_info", "db_info", "sql", "error"],
+        )
         output_parser = StrOutputParser()
 
         chain = prompt | llm | output_parser

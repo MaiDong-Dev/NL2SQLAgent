@@ -12,6 +12,7 @@
 # =============================================================================
 
 import asyncio
+import logging
 
 import jieba.analyse
 from langgraph.runtime import Runtime
@@ -19,6 +20,12 @@ from langgraph.runtime import Runtime
 from server.agent.context import DataAgentContext
 from server.agent.state import DataAgentState
 from server.core.log import logger
+
+# jieba 在导入时自建了 logger 并置为 DEBUG，会往 stderr 打 4 行载入词典的过程
+# （Building prefix dict... / Loading model cost ...），与业务日志混在一起。
+# 必须在这里调它自己的 API 才能覆盖——在 log.py 里调 logging.getLogger("jieba")
+# 会先被 jieba 的模块级 setLevel(DEBUG) 覆盖掉。
+jieba.setLogLevel(logging.WARNING)
 
 
 async def extract_keywords(state: DataAgentState, runtime: Runtime[DataAgentContext]):

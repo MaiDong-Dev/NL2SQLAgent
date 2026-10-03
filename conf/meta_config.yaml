@@ -5,19 +5,19 @@ tables:
     columns:
       - name: region_id
         role: primary_key
-        description: 地区唯一标识。
-        alias: [地区ID, 区域ID]
+        description: 省份唯一标识，粒度到省份而非大区（一个大区下含多个省份，每个省份一个 region_id）。仅用于关联，不要作为分组维度。
+        alias: [地区ID, 区域ID, 省份ID]
         sync: false
 
       - name: province
         role: dimension
-        description: 订单所属的省份名称。
+        description: 订单所属的省份名称，如广东省、浙江省。
         alias: [省份, 省, 所在省份]
         sync: true
 
       - name: region_name
         role: dimension
-        description: 订单所属的大区名称，如华东、华南等。
+        description: 订单所属的大区名称，粒度到大区（如华东、华南），一个大区下含多个省份。
         alias: [地区, 区域, 大区]
         sync: true
 
@@ -170,7 +170,7 @@ metrics:
       - fact_order.order_amount
     alias: [成交总额, 订单总额]
   - name: AOV
-    description: 全称Average Order Value，表示所有订单的成交金额平均值。
+    description: 全称Average Order Value，表示所有订单的成交金额平均值，即客单价。
     relevant_columns:
-      - fact_order.order_quantity
-    alias: [平均单价, 平均订单金额]
+      - fact_order.order_amount
+    alias: [平均单价, 平均订单金额, 客单价]

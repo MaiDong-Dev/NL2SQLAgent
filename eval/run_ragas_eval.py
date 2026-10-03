@@ -39,7 +39,11 @@ import argparse
 import asyncio
 import csv
 import json
+import logging
 import os
+import sys
+import time
+from collections import Counter
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -48,6 +52,7 @@ import httpx
 from openai import AsyncOpenAI
 from sqlalchemy import text
 
+from eval.equivalence import deterministic_equivalence
 from eval.jev_judge import (
     DEFAULT_THRESHOLD as JEV_DEFAULT_THRESHOLD,
     REQUEST_TIMEOUT as JEV_REQUEST_TIMEOUT,
@@ -200,6 +205,8 @@ def execution_accuracy(predicted_rows, reference_rows, predicted_error=None):
     )
 
 
+# 裁判之前的确定性前置校验（行数/列数不一致直接判否，补裁判的"分组粒度"盲区）。
+# 实现放在 eval/equivalence.py，那里的版本不 import 重依赖，可以离线单测。
 # =============================================================================
 # 跑系统：一条问句 → (生成 SQL, 执行结果, 错误信息, 召回字段 ID)
 # =============================================================================
@@ -266,13 +273,20 @@ async def evaluate_case(context, dw_repository, case: dict, ddl: str, scorers: d
     """评测单条用例，返回一行结果 dict
 
     judge_cfg 不为 None 时启用 Jev 裁判：{"client": httpx.AsyncClient, "threshold": float}
+
+    耗时字段（agent_seconds / judge_seconds / case_seconds）用于定位瓶颈：
+    业务链路是 6~7 次 LLM 调用，通常占大头；裁判只占 1 次。
     """
+    case_started = time.perf_counter()
+
     query = case["query"]
     reference_sql = case["reference_sql"]
     reference_columns = case["reference_columns"]
 
     # 1) 跑系统
+    agent_started = time.perf_counter()
     predicted_sql, predicted_rows, error, retrieved_ids = await run_agent(context, query)
+    agent_seconds = time.perf_counter() - agent_started
 
     # 2) 执行标准 SQL 拿到参考结果
     try:
@@ -305,25 +319,41 @@ async def evaluate_case(context, dw_repository, case: dict, ddl: str, scorers: d
         except Exception as e:  # 裁判 LLM 失败不应中断整轮评测
             equivalence_reason = f"裁判 LLM 调用失败: {type(e).__name__}: {e}"
 
+    # 4) 裁判之前的确定性前置校验：行数/列数不一致可直接判否，不必花裁判调用
+    det_verdict, det_reason = deterministic_equivalence(predicted_rows, reference_rows, error)
+
     # 4') Jev 裁判：与 ragas 拿到同样的 DDL 上下文，判定用单点总体概率（见 jev_judge 模块说明）
     jev_equivalence = float("nan")
     jev_probability = float("nan")
     jev_reason = ""
+    jev_cost = 0.0
+    jev_input_tokens = 0
+    judge_seconds = 0.0
     if judge_cfg is not None and predicted_sql:
-        try:
-            result = await judge_equivalence(
-                judge_cfg["client"],
-                query=query,
-                reference_sql=reference_sql,
-                predicted_sql=predicted_sql,
-                ddl=ddl,
-                threshold=judge_cfg["threshold"],
-            )
-            jev_equivalence = result["equivalence"]
-            jev_probability = result["probability"]
-            jev_reason = result["reason"]
-        except Exception as e:  # 裁判失败不应中断整轮评测
-            jev_reason = f"Jev 裁判调用失败: {type(e).__name__}: {e}"
+        if det_verdict != "undecided":
+            # 确定性方法已经判出结论：直接用它的结论，短路掉裁判调用（省一次 API 且不会被裁判的盲区带偏）
+            if det_verdict == "incorrect":
+                jev_equivalence = 0.0
+            jev_reason = f"确定性校验判定：{det_reason}"
+        else:
+            judge_started = time.perf_counter()
+            try:
+                result = await judge_equivalence(
+                    judge_cfg["client"],
+                    query=query,
+                    reference_sql=reference_sql,
+                    predicted_sql=predicted_sql,
+                    ddl=ddl,
+                    threshold=judge_cfg["threshold"],
+                )
+                jev_equivalence = result["equivalence"]
+                jev_probability = result["probability"]
+                jev_reason = result["reason"]
+                jev_cost = result["cost"]
+                jev_input_tokens = result["input_tokens"]
+            except Exception as e:  # 裁判失败不应中断整轮评测
+                jev_reason = f"Jev 裁判调用失败: {type(e).__name__}: {e}"
+            judge_seconds = time.perf_counter() - judge_started
 
     # 5) 指标4：执行准确性（真正跑库比对结果）
     exec_score = await execution_accuracy.ascore(
@@ -347,6 +377,14 @@ async def evaluate_case(context, dw_repository, case: dict, ddl: str, scorers: d
         "jev_reason": jev_reason,
         "execution_accuracy": _value_of(exec_score),
         "execution_reason": _reason_of(exec_score),
+        "det_verdict": det_verdict,
+        "det_reason": det_reason,
+        "predicted_rows": len(predicted_rows) if predicted_rows is not None else -1,
+        "agent_seconds": round(agent_seconds, 3),
+        "judge_seconds": round(judge_seconds, 3),
+        "case_seconds": round(time.perf_counter() - case_started, 3),
+        "jev_input_tokens": jev_input_tokens,
+        "jev_cost": jev_cost,
     }
 
 
@@ -367,7 +405,117 @@ def _error_row(case: dict, error: Exception) -> dict:
         "jev_reason": "",
         "execution_accuracy": "error",
         "execution_reason": f"用例执行异常: {type(error).__name__}: {error}",
+        "det_verdict": "incorrect",
+        "det_reason": f"用例执行异常: {type(error).__name__}: {error}",
+        "predicted_rows": -1,
+        "agent_seconds": 0.0,
+        "judge_seconds": 0.0,
+        "case_seconds": 0.0,
+        "jev_input_tokens": 0,
+        "jev_cost": 0.0,
     }
+
+
+# =============================================================================
+# 终端过程输出
+#
+# 设计意图：评测一轮 63 条约 25 分钟，中途必须能看到"跑到哪、每条什么结果、
+# 时间花在哪"，否则卡住了也判断不出是链路慢还是裁判慢。
+# 所有输出都 flush，保证重定向到文件或管道时也能实时看到。
+# =============================================================================
+LINE = "─" * 78
+
+
+def _one_line(text, limit: int = 96) -> str:
+    """压成单行并截断，避免生成的 SQL 把终端刷爆"""
+    text = " ".join(str(text).split())
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def _secs(seconds: float) -> str:
+    """人可读耗时：<60s 显示秒，否则显示分"""
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    minutes, rest = divmod(seconds, 60)
+    return f"{int(minutes)}m{rest:04.1f}s"
+
+
+def _missing_columns(row: dict) -> list[str]:
+    """漏召回的字段：标注里有、召回结果里没有的（漏了就必然生成不出正确 SQL）"""
+    retrieved = set(filter(None, str(row.get("retrieved_ids", "")).split("|")))
+    reference = set(filter(None, str(row.get("reference_ids", "")).split("|")))
+    return sorted(reference - retrieved)
+
+
+def setup_quiet_logging() -> Path:
+    """把节点级 INFO 日志从控制台挪到文件，让终端只留评测过程
+
+    一轮 63 条会产生上千行节点日志（抽取关键词、召回字段、过滤表、生成的 SQL、
+    执行结果各一条），直接打出来会把评测过程本身冲散。完整日志仍写入
+    logs/eval_<时间戳>.log 留档，排查单条失败时可以回查；
+    需要实时看节点日志时用 --verbose-logs。
+    """
+    log_path = Path("logs") / f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    from loguru import logger as loguru_logger
+
+    loguru_logger.remove()                                    # 去掉 log.py 加的控制台/文件 sink
+    loguru_logger.add(sys.stderr, level="WARNING")            # 控制台只留警告及以上
+    loguru_logger.add(log_path, level="INFO", rotation="10 MB", encoding="utf-8")
+    return log_path
+
+
+def print_case(index: int, total: int, row: dict, elapsed_total: float,
+               passed: int, failed: int) -> None:
+    """打印单条用例的完整过程"""
+    verdict = row["execution_accuracy"]
+    mark, label = {
+        "correct": ("✓", "correct"),
+        "incorrect": ("✗", "incorrect"),
+        "empty_both": ("∅", "empty_both"),
+    }.get(verdict, ("!", str(verdict)))
+
+    # 判定摘要：Jev 概率（或 ragas 分数）
+    bits = []
+    if row["jev_probability"] == row["jev_probability"]:
+        bits.append(f"Jev={row['jev_probability']:.2f}")
+    if row["sql_equivalence"] == row["sql_equivalence"]:
+        bits.append(f"ragas={row['sql_equivalence']:.2f}")
+    judge_note = "  ".join(bits)
+
+    print(f"[{index:>2}/{total}] {row['query']}")
+    print(f"        召回   P={row['linking_precision']:.3f}  R={row['linking_recall']:.3f}"
+          f"   ({len(str(row['retrieved_ids']).split('|')) if row['retrieved_ids'] else 0} 字段)")
+
+    missing = _missing_columns(row)
+    if missing:
+        print(f"              漏召回: {', '.join(missing)}")
+
+    print(f"        SQL    {_one_line(row['predicted_sql']) or '（未生成）'}")
+
+    rows_count = row.get("predicted_rows", -1)
+    count_note = f"{rows_count} 行" if rows_count >= 0 else "未执行"
+    print(f"        执行   {count_note}")
+
+    print(f"        判定   {mark} {label}" + (f"    {judge_note}" if judge_note else "")
+          + f"    耗时 {_secs(row['case_seconds'])}"
+            f"  (链路 {_secs(row['agent_seconds'])} / 裁判 {_secs(row['judge_seconds'])})")
+
+    # 失败用例补上裁判/执行给出的原因，最值得人工看
+    if verdict != "correct":
+        print(f"        原因   {_one_line(row['execution_reason'], 150)}")
+        if row["jev_reason"]:
+            print(f"        裁判   {_one_line(row['jev_reason'], 150)}")
+
+    done = index
+    rate = passed / done * 100
+    avg = elapsed_total / done
+    eta = avg * (total - done)
+    print(f"    {LINE[:70]}")
+    print(f"    进度 {done}/{total}  通过 {passed}  失败 {failed}  "
+          f"准确率 {rate:.1f}%  均 {_secs(avg)}  剩余 ≈ {_secs(eta)}")
+    print()
 
 
 async def main():
@@ -387,7 +535,15 @@ async def main():
         default=JEV_DEFAULT_THRESHOLD,
         help=f"Jev Noul 判定阈值（默认 {JEV_DEFAULT_THRESHOLD}，实测概率两极分化，结果对阈值不敏感）",
     )
+    parser.add_argument(
+        "--verbose-logs",
+        action="store_true",
+        help="保留节点级 INFO 日志（默认压到 WARNING，完整日志另写 logs/eval_*.log）",
+    )
     args = parser.parse_args()
+
+    # 日志：默认把节点级 INFO 挪到独立文件，终端只留评测过程本身
+    eval_log_path = None if args.verbose_logs else setup_quiet_logging()
 
     # 裁判依赖的环境变量尽早失败，避免跑到一半才发现
     if not args.skip_llm and args.judge in ("jev", "both") and not resolve_api_key():
@@ -397,6 +553,20 @@ async def main():
     cases = [json.loads(line) for line in Path(args.dataset).read_text(encoding="utf-8").splitlines() if line.strip()]
     if args.limit:
         cases = cases[: args.limit]
+
+    print(LINE)
+    print("  NL2SQL 全量评测")
+    print(f"  评测集   : {Path(args.dataset).name}（{len(cases)} 条）")
+    print(f"  业务 LLM : {app_config.llm.model_name} @ {app_config.llm.base_url}")
+    if args.skip_llm:
+        print("  SQL 裁判 : 已跳过（--skip-llm）")
+    else:
+        print(f"  SQL 裁判 : {args.judge}"
+              + (f"（阈值 {args.jev_threshold}）" if args.judge in ("jev", "both") else ""))
+    if eval_log_path:
+        print(f"  节点日志 : {eval_log_path}（终端只显示评测过程，加 --verbose-logs 可实时输出）")
+    print(LINE)
+    print()
 
     # 初始化基础设施（与 FastAPI lifespan / build_meta_knowledge 脚本一致）
     embedding_client_manager.init()
@@ -452,13 +622,27 @@ async def main():
 
         ddl = await load_schema_ddl(dw_session)
 
+        # 打印数据仓库规模与 DDL 长度：数据范围直接决定哪些问句会返回空结果
+        stats = (await dw_session.execute(text(
+            "SELECT COUNT(*), MIN(date_id), MAX(date_id) FROM fact_order"))).fetchone()
+        print(f"  数据仓库 : {stats[0]} 单，{stats[1]} ~ {stats[2]}")
+        print(f"  建表 DDL : {len(ddl)} 字符")
+        print()
+
+        passed = failed = 0
+        run_started = time.perf_counter()
         for index, case in enumerate(cases, start=1):
-            print(f"[{index}/{len(cases)}] {case['query']}")
             try:
-                rows.append(await evaluate_case(context, dw_repository, case, ddl, scorers, judge_cfg))
+                row = await evaluate_case(context, dw_repository, case, ddl, scorers, judge_cfg)
             except Exception as e:  # 单条用例异常（如 MySQL 连接中断）不应中断整轮评测
-                print(f"    用例执行异常: {type(e).__name__}: {e}")
-                rows.append(_error_row(case, e))
+                row = _error_row(case, e)
+            rows.append(row)
+
+            if row["execution_accuracy"] == "correct":
+                passed += 1
+            else:
+                failed += 1
+            print_case(index, len(cases), row, time.perf_counter() - run_started, passed, failed)
 
     await qdrant_client_manager.close()
     await es_client_manager.close()
@@ -468,44 +652,124 @@ async def main():
     if http_client is not None:
         await http_client.aclose()
 
-    # 汇总输出
+    # =========================================================================
+    # 汇总报告
+    # =========================================================================
     total = len(rows)
-    print("\n" + "=" * 60)
-    print(f"用例数: {total}")
-    print(f"字段召回精确率 linking_precision : {sum(r['linking_precision'] for r in rows) / total:.3f}")
-    print(f"字段召回召回率 linking_recall    : {sum(r['linking_recall'] for r in rows) / total:.3f}")
+    run_elapsed = time.perf_counter() - run_started
+    acc = sum(1 for r in rows if r["execution_accuracy"] == "correct")
+    empty = sum(1 for r in rows if r["execution_accuracy"] == "empty_both")
+    broken = sum(1 for r in rows if r["execution_accuracy"] == "error")
+
+    print(LINE)
+    print(f"  评测完成：{total} 条，总耗时 {_secs(run_elapsed)}")
+    print(LINE)
+
+    # ---- 指标 ----
+    print("\n【指标】")
+    print(f"  字段召回精确率 linking_precision : {sum(r['linking_precision'] for r in rows) / total:.3f}")
+    print(f"  字段召回召回率 linking_recall    : {sum(r['linking_recall'] for r in rows) / total:.3f}")
     if not args.skip_llm:
         if args.judge in ("ragas", "both"):
             valid = [r["sql_equivalence"] for r in rows if r["sql_equivalence"] == r["sql_equivalence"]]
             if valid:
-                print(f"SQL 等价率 sql_equivalence(ragas): {sum(valid) / len(valid):.3f}")
+                print(f"  SQL 等价率 sql_equivalence(ragas): {sum(valid) / len(valid):.3f}")
         if args.judge in ("jev", "both"):
             valid = [r["jev_equivalence"] for r in rows if r["jev_equivalence"] == r["jev_equivalence"]]
             if valid:
-                print(f"SQL 等价率 jev_equivalence       : {sum(valid) / len(valid):.3f}")
+                print(f"  SQL 等价率 jev_equivalence       : {sum(valid) / len(valid):.3f}")
         if args.judge == "both":
             pairs = [(r["jev_equivalence"], r["sql_equivalence"]) for r in rows
                      if r["jev_equivalence"] == r["jev_equivalence"]
                      and r["sql_equivalence"] == r["sql_equivalence"]]
             if pairs:
                 agree = sum(1 for jev, ragas in pairs if (jev >= 0.5) == (ragas >= 0.5)) / len(pairs)
-                print(f"两个裁判一致率                   : {agree:.2%}（{len(pairs)} 条可比）")
-    acc = sum(1 for r in rows if r["execution_accuracy"] == "correct")
-    empty = sum(1 for r in rows if r["execution_accuracy"] == "empty_both")
-    broken = sum(1 for r in rows if r["execution_accuracy"] == "error")
-    print(f"执行准确率 execution_accuracy    : {acc / total:.2%} ({acc}/{total})")
+                print(f"  两个裁判一致率                   : {agree:.2%}（{len(pairs)} 条可比）")
+    print(f"  执行准确率 execution_accuracy    : {acc / total:.2%} ({acc}/{total})")
     if empty:
-        print(f"  ⚠ 双空结果（不计通过，需人工复核）: {empty} 条")
+        print(f"    ⚠ 双空结果（不计通过，需人工复核）: {empty} 条")
     if broken:
-        print(f"  ⚠ 评测过程异常（连接中断等）: {broken} 条")
-    print("=" * 60)
+        print(f"    ⚠ 评测过程异常（连接中断等）: {broken} 条")
+
+    # ---- 裁判：确定性前置校验的覆盖与裁判偏差 ----
+    if not args.skip_llm and args.judge in ("jev", "both"):
+        # 确定性校验能直接判否的（行数/列数不一致），不必再看裁判
+        short_circuit = sum(1 for r in rows if r.get("det_verdict") == "incorrect")
+        to_judge = total - short_circuit
+        print(f"\n【裁判】确定性前置校验短路 {short_circuit}/{total} 条"
+              f"（行数或列数不一致，直接判否），其余 {to_judge} 条交裁判")
+
+        # 裁判与执行结果的分歧：判等价但执行不对 = 裁判假阳性，最需要关注
+        false_positive = [r for r in rows
+                          if r["execution_accuracy"] != "correct"
+                          and r["jev_equivalence"] == 1.0]
+        false_negative = [r for r in rows
+                          if r["execution_accuracy"] == "correct"
+                          and r["jev_equivalence"] == 0.0]
+        if false_positive:
+            print(f"  ⚠ 裁判假阳性 {len(false_positive)} 条（判等价但执行结果不对）:")
+            for r in false_positive:
+                print(f"      - {_one_line(r['query'], 60)}")
+        if false_negative:
+            print(f"  ⚠ 裁判假阴性 {len(false_negative)} 条（判不等价但执行结果正确）:")
+            for r in false_negative:
+                print(f"      - {_one_line(r['query'], 60)}")
+
+    # ---- 耗时 ----
+    print("\n【耗时】")
+    agent_total = sum(r["agent_seconds"] for r in rows)
+    judge_total = sum(r["judge_seconds"] for r in rows)
+    print(f"  业务链路合计 {_secs(agent_total)}（均 {_secs(agent_total / total)}/条）")
+    if judge_total:
+        print(f"  裁判合计     {_secs(judge_total)}（均 {_secs(judge_total / total)}/条）")
+    print(f"  整轮墙钟     {_secs(run_elapsed)}（均 {_secs(run_elapsed / total)}/条）")
+
+    # ---- 裁判成本 ----
+    jev_cost = sum(r.get("jev_cost", 0.0) for r in rows)
+    if jev_cost:
+        tokens = sum(r.get("jev_input_tokens", 0) for r in rows)
+        print(f"  Jev 裁判成本 ${jev_cost:.6f}（{tokens} input tokens，输出免费）")
+
+    # ---- 失败明细 ----
+    failures = [r for r in rows if r["execution_accuracy"] != "correct"]
+    if failures:
+        print(f"\n【失败明细】{len(failures)} 条")
+        for r in failures:
+            tag = {"empty_both": "双空结果", "error": "执行异常"}.get(r["execution_accuracy"], "结果不一致")
+            print(f"  ✗ [{tag}] {r['query']}")
+            print(f"      {_one_line(r['execution_reason'], 160)}")
+            if r["jev_reason"]:
+                print(f"      裁判: {_one_line(r['jev_reason'], 160)}")
+    else:
+        print("\n【失败明细】无，全部通过")
+
+    # ---- 召回缺陷 ----
+    # 漏召回意味着生成 SQL 时看不到该字段，必然出错，比精确率更值得优先修
+    miss_counter = Counter()
+    for r in rows:
+        miss_counter.update(_missing_columns(r))
+    no_miss = sum(1 for r in rows if not _missing_columns(r))
+    print(f"\n【字段召回】无漏召回 {no_miss}/{total} 条")
+    if miss_counter:
+        top = "、".join(f"{col}({n})" for col, n in miss_counter.most_common(8))
+        print(f"  漏召回最多的字段: {top}")
+
+    # ---- 结果的可复现性说明 ----
+    # 实测：同一份数据、同一套代码连跑两次，会有 3~5 条用例判定翻转，
+    # 只有少数几条是稳定失败。所以单次运行之间的差异属于噪声，不能据此判断系统好坏。
+    print("\n【可复现性】")
+    print("  LLM 在 temperature=0 下也无法保证逐字复现（实测同问句连跑 5 次可出多个写法），")
+    print("  因此单次运行之间 1~3 条用例的翻转属于噪声，不可作为「改动有效/系统退化」的依据。")
+    print("  要比较两次改动的效果，请重复多轮取稳定结论，或只关注多轮都失败的用例。")
+
+    print("\n" + LINE)
 
     output_path = OUTPUT_DIR / f"results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         writer.writeheader()
         writer.writerows(rows)
-    print(f"明细已写入: {output_path}")
+    print(f"逐条明细已写入: {output_path}")
 
 
 if __name__ == "__main__":

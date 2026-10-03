@@ -18,6 +18,7 @@
 # 所以原子问题只用来归因（说明"为什么不等价"），不参与判定。
 # =============================================================================
 
+import asyncio
 import json
 import os
 
@@ -37,7 +38,24 @@ MODEL = "~typesafe/jev-latest"
 # 实测概率中位数 0.97、仅 2/63 落在 [0.4,0.6]，判定结果对阈值不敏感。
 DEFAULT_THRESHOLD = 0.5
 
-REQUEST_TIMEOUT = 60
+# 超时与重试策略。
+#
+# 为什么把连接超时和读取超时分开：实测 OpenRouter 偶发**首连失败**
+# （ConnectTimeout 卡满后才超时，紧接着的第二次请求 1.8s 就成功）。
+# 用单一的 60s 总额超时，每次这种瞬时失败都要白等一分钟，一轮 76 条就是七十多分钟。
+# 连接阶段用短超时快速失败 + 重试，既省时间又比"硬等"更容易成功。
+CONNECT_TIMEOUT = 10.0
+READ_TIMEOUT = 60.0
+REQUEST_TIMEOUT = httpx.Timeout(connect=CONNECT_TIMEOUT, read=READ_TIMEOUT,
+                                write=10.0, pool=10.0)
+
+# 瞬时网络故障的重试次数与退避基数
+MAX_ATTEMPTS = 3
+RETRY_BACKOFF = 1.5
+
+# 这些异常都属"这次没连上/没读完"，重试有意义；判定的语义错误不在此列
+_RETRYABLE = (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout,
+              httpx.WriteTimeout, httpx.PoolTimeout, httpx.RemoteProtocolError)
 
 # 原子维度（仅用于归因输出，不参与判定）
 ATOMIC_KEYS = ["same_tables", "same_agg", "same_filter", "same_group", "same_limit", "same_columns"]
@@ -147,15 +165,30 @@ async def judge_equivalence(
         "state": build_state(query, reference_sql, predicted_sql, ddl),
         "questions": build_questions(),
     }
-    response = await client.post(
-        DECISIONS_URL,
-        headers={
-            "Authorization": f"Bearer {resolve_api_key()}",
-            "Content-Type": "application/json",
-        },
-        content=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-    )
-    response.raise_for_status()
+
+    # 带重试的调用：瞬时连接故障不该让一条用例丢掉判定
+    response = None
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            response = await client.post(
+                DECISIONS_URL,
+                headers={
+                    "Authorization": f"Bearer {resolve_api_key()}",
+                    "Content-Type": "application/json",
+                },
+                content=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            )
+            response.raise_for_status()
+            break
+        except httpx.HTTPStatusError as e:
+            # 限流与服务端错误值得重试，其余 4xx（如鉴权失败）重试也没用
+            if e.response.status_code not in (429, 500, 502, 503, 504) or attempt == MAX_ATTEMPTS:
+                raise
+        except _RETRYABLE:
+            if attempt == MAX_ATTEMPTS:
+                raise
+        await asyncio.sleep(RETRY_BACKOFF ** attempt)
+
     payload = response.json()
 
     answers = payload.get("answers", {}) or {}

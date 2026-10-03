@@ -12,6 +12,24 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
+def format_business_date(date_id) -> str | None:
+    """把事实表 yyyyMMdd 形式的整型日期键转成 YYYY-MM-DD
+
+    抽成模块级纯函数（不依赖会话）是为了能离线单测。
+    非法值或 None 一律返回 None，由调用方决定如何降级。
+
+    示例：20240101 -> "2024-01-01"，None -> None
+    """
+    if date_id is None:
+        return None
+
+    raw = str(date_id).strip()
+    if len(raw) != 8 or not raw.isdigit():
+        return None
+
+    return f"{raw[0:4]}-{raw[4:6]}-{raw[6:8]}"
+
+
 class DWMySQLRepository:
     """数据仓库查询仓库
     
@@ -57,6 +75,25 @@ class DWMySQLRepository:
         dialect = self.session.get_bind().dialect.name
 
         return {'version': version, 'dialect': dialect}
+
+    async def get_data_date_range(self) -> dict:
+        """获取事实数据真实覆盖的日期范围（最早/最晚业务日期）
+
+        返回格式：{"start": "2024-01-01", "end": "2025-12-31"}；表内无数据时为
+        {"start": None, "end": None}
+
+        设计意图：
+        - 生成 SQL 时必须知道"数据实际覆盖到哪一天"。否则用户问"1月份"而系统
+          当前日期是 2026 年时，模型会用当前年份补全过滤条件，查不到任何数据。
+        - 直接取事实表 date_id 的最小/最大值：date_id 本身就是 yyyyMMdd 编码，
+          取极值即可，无需对列做算术或字符串处理（与 generate_sql 的时间口径约束一致）。
+        """
+        sql = "select min(date_id) as min_date, max(date_id) as max_date from fact_order"
+        row = (await self.session.execute(text(sql))).mappings().fetchone()
+        return {
+            "start": format_business_date(row["min_date"]),
+            "end": format_business_date(row["max_date"]),
+        }
 
     async def validate_sql(self, sql):
         """使用 EXPLAIN 验证 SQL 语法（不实际执行查询）

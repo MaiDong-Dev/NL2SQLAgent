@@ -26,10 +26,36 @@ _TIME_QUERY_PATTERN = re.compile(
 # 时间维度表的判定依据：一张维表同时具备以下时间粒度字段中的至少 2 个
 _TIME_GRAIN_COLUMN_NAMES = {"year", "quarter", "month"}
 
+# 显式年份：四位数后面必须跟"年"（如 2025年 / 2024 年）。
+# 不能只匹配四位数——「订单量超过2000的月份」里的 2000 是阈值不是年份，
+# 要求"年"后缀才能把两者分开。代价是"2025"这种省略"年"的写法识别不到，
+# 但那只会让歧义检查多报一条 WARN（提示性的），比误判成越界 FAIL 安全。
+_YEAR_PATTERN = re.compile(r"(?:19|20)\d{2}\s*年")
+
 
 def has_time_semantic(query: str) -> bool:
     """判断用户问句是否包含时间维度语义"""
     return bool(_TIME_QUERY_PATTERN.search(query or ""))
+
+
+def extract_years(query: str) -> list[int]:
+    """提取问句中显式写出的年份（形如"2025年"），按出现顺序去重"""
+    years = []
+    for match in _YEAR_PATTERN.finditer(query or ""):
+        year = int(re.sub(r"\D", "", match.group()))
+        if year not in years:
+            years.append(year)
+    return years
+
+
+def has_explicit_year(query: str) -> bool:
+    """判断问句是否显式写出了年份（如"2025年"）
+
+    用途：出题校验。含时间语义但没写年份的问句（"1月份的订单量是多少"），
+    答案取决于模型如何推断年份，属歧义题，需要出题人确认是否有意为之——
+    实测这类题曾因模型用系统当前年份补全而查空，是评测噪声的主要来源之一。
+    """
+    return bool(_YEAR_PATTERN.search(query or ""))
 
 
 def is_time_dimension_table(column_names) -> bool:
