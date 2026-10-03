@@ -1,10 +1,33 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>date-agent-frontend</title>
+    <meta name="theme-color" content="#05080e" />
+    <meta name="description" content="掌柜问数 · 用自然语言向数据仓库提问，自动生成并执行 SQL" />
+    <title>掌柜问数 · NL2SQL 智能体</title>
+
+    <!-- 首帧落主题：先于样式表执行，避免刷新时闪白/闪黑 -->
+    <script>
+      (function () {
+        var KEY = "nl2sql-agent-theme";
+        var theme;
+        try {
+          var saved = localStorage.getItem(KEY);
+          theme =
+            saved === "light" || saved === "dark"
+              ? saved
+              : window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light";
+        } catch (e) {
+          theme = "dark";
+        }
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>
