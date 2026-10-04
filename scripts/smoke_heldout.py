@@ -28,9 +28,10 @@ from server.repositories.mysql.meta.meta_mysql_repository import MetaMySQLReposi
 from server.repositories.qdrant.column_qdrant_repository import ColumnQdrantRepository
 from server.repositories.qdrant.metric_qdrant_repository import MetricQdrantRepository
 
-# 注意：dw 数据仓库只有 2025 年 Q1（1~3 月）共 115 笔订单，
-# 问句涉及 2024 年 / Q2~Q4 会返回空结果，冒烟时会被判为「结果为空」告警。
-# 新增问句时请确认过滤条件落在这个数据范围内。
+# dw 数据范围（2026-10-03 扩充后）：2024-01-01 ~ 2025-12-31 共 50000 单，
+# 覆盖 7 个大区 / 31 个省 / 10 个品类。
+# 若只跑了 deploy/mysql/dw.sql 而没跑 scripts/generate_dw_data.py，库里就只有
+# 2025 Q1 的 115 单种子数据，涉及 2024 年 / Q2~Q4 的问句会返回空结果、被判为告警。
 QUERIES = [
     "2025年第一季度的销售额是多少",
     "2025年华东大区每个月的订单量",
@@ -40,6 +41,12 @@ QUERIES = [
     "铂金会员在第一季度下了多少单",
     "广东省2025年每个月的销售额是多少",
     "各品牌在2025年的平均订单金额是多少",
+    # 以下问句依赖扩充后的数据范围（2024 年 / Q4 / 更多省份），
+    # 只跑了 dw.sql 种子数据时会返回空结果，属预期
+    "2024年和2025年的销售额分别是多少",
+    "2025年第四季度各品类的销售额",
+    "2025年销售额最高的省份是哪个",
+    "2024年各大区的订单量排名是怎样的",
 ]
 
 

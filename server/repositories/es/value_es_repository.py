@@ -15,17 +15,17 @@ from server.entities.value_info import ValueInfo
 
 class ValueESRepository:
     """字段取值全文检索仓库
-    
+
     职责：
     - 管理 app_config.es.index_name 指定的 ES 索引（默认 data-agent-value）
     - 将字段的具体取值写入 ES，建立倒排索引
     - 提供全文检索接口，通过关键词匹配召回相关字段取值
-    
+
     为什么用 ES 而不是向量库？
     字段取值（如 "北京"、"在职"、"实习生"）是离散的枚举值或实体名，
     更适合用全文检索（倒排索引）来精确匹配，而不是语义向量检索。
     向量检索更适合字段名/指标名这类抽象概念。
-    
+
     分词策略：
     - 使用 IK 分词器（ik_max_word），对中文做细粒度分词
     - 例如 "在职实习生" 会被切分为 ["在职", "实习生", "实习", "生"]
@@ -49,17 +49,17 @@ class ValueESRepository:
         }
     }
 
-    def __init__(self, client: AsyncElasticsearch):
+    def __init__(self, client: AsyncElasticsearch) -> None:
         self.client = client
 
-    async def ensure_index(self):
+    async def ensure_index(self) -> None:
         """确保索引存在，不存在则自动创建"""
         if not await self.client.indices.exists(index=self.index_name):
             await self.client.indices.create(index=self.index_name, mappings=self.index_mappings)
 
-    async def index(self, value_infos: list[ValueInfo], batch_size=20):
+    async def index(self, value_infos: list[ValueInfo], batch_size: int = 20) -> None:
         """批量写入字段取值（使用 ES bulk API 提高写入效率）
-        
+
         参数：
         - value_infos: 待写入的字段取值列表
         - batch_size: 每批写入的数据量
@@ -75,12 +75,12 @@ class ValueESRepository:
 
     async def search(self, keyword: str, score_threshold: float = 0.6, limit: int = 5) -> list[ValueInfo]:
         """全文检索——根据关键词匹配召回字段取值
-        
+
         参数：
         - keyword: 搜索关键词（如 "在职"、"北京"）
         - score_threshold: 相关性分数阈值（0.6），低于此分数的结果丢弃
         - limit: 返回的最大结果数（Top-5）
-        
+
         检索方式：
         - 使用 match 查询，ES 会对 keyword 做 IK 分词后再匹配
         - 例如搜索 "在职" 能匹配到 "在职实习生"、"在职员工" 等

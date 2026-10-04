@@ -1,79 +1,157 @@
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+/* =============================================================================
+   全局设计令牌 + 基础样式
+   主题通过 <html data-theme="light|dark"> 切换，组件里一律用 var(--x) 取值，
+   不写死颜色，保证两套主题只需在这里维护一份。
+   ============================================================================= */
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+/* ---------- 浅色主题 ---------- */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --bg:            #eef1f8;
+  --bg-glow-1:     rgba(79, 70, 229, 0.13);
+  --bg-glow-2:     rgba(6, 182, 212, 0.13);
+  --grid-line:     rgba(15, 23, 42, 0.035);
+
+  --surface:       #ffffff;
+  --surface-2:     #f6f8fc;
+  --surface-3:     #eceffa;
+  --glass:         rgba(255, 255, 255, 0.76);
+  --glass-border:  rgba(255, 255, 255, 0.9);
+
+  --border:        rgba(15, 23, 42, 0.09);
+  --border-strong: rgba(15, 23, 42, 0.16);
+
+  --text:          #0f172a;
+  --text-muted:    #5b6b82;
+  --text-faint:    #94a3b8;
+
+  --accent:        #4f46e5;
+  --accent-2:      #0891b2;
+  --accent-soft:   rgba(79, 70, 229, 0.09);
+  --on-accent:     #ffffff;
+
+  --success:       #0d9f6e;
+  --success-soft:  rgba(13, 159, 110, 0.13);
+  --warning:       #d97706;
+  --danger:        #dc2626;
+  --danger-soft:   rgba(220, 38, 38, 0.11);
+
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow:    0 10px 30px rgba(15, 23, 42, 0.09);
+  --shadow-lg: 0 24px 60px rgba(15, 23, 42, 0.16);
+  --ring:      0 0 0 3px rgba(79, 70, 229, 0.18);
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+/* ---------- 深色主题 ---------- */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg:            #05080e;
+  --bg-glow-1:     rgba(99, 102, 241, 0.20);
+  --bg-glow-2:     rgba(34, 211, 238, 0.14);
+  --grid-line:     rgba(148, 163, 184, 0.055);
+
+  --surface:       #0c121c;
+  --surface-2:     #111927;
+  --surface-3:     #172233;
+  --glass:         rgba(13, 19, 30, 0.72);
+  --glass-border:  rgba(148, 163, 184, 0.14);
+
+  --border:        rgba(148, 163, 184, 0.13);
+  --border-strong: rgba(148, 163, 184, 0.24);
+
+  --text:          #e6edf6;
+  --text-muted:    #93a3b8;
+  --text-faint:    #64748b;
+
+  --accent:        #7c8cff;
+  --accent-2:      #22d3ee;
+  --accent-soft:   rgba(124, 140, 255, 0.14);
+  --on-accent:     #0a0f1a;
+
+  --success:       #34d399;
+  --success-soft:  rgba(52, 211, 153, 0.16);
+  --warning:       #fbbf24;
+  --danger:        #f87171;
+  --danger-soft:   rgba(248, 113, 113, 0.16);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow:    0 10px 30px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.62);
+  --ring:      0 0 0 3px rgba(124, 140, 255, 0.24);
 }
-a:hover {
-  color: #535bf2;
+
+/* ---------- 基础重置 ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
 }
 
 body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-.card {
-  padding: 2em;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* 主题切换时整体过渡，避免生硬闪变 */
+  transition: background-color 0.32s ease, color 0.32s ease;
 }
 
 #app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  height: 100%;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* 跟随主题的细滚动条 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+  background-clip: content-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }

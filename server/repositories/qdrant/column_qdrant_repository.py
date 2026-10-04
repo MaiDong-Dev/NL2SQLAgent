@@ -9,7 +9,7 @@
 from dataclasses import asdict
 
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.models import VectorParams, Distance, PointStruct
+from qdrant_client.models import Distance, PointStruct, VectorParams
 
 from server.conf.app_config import app_config
 from server.entities.column_info import ColumnInfo
@@ -17,19 +17,19 @@ from server.entities.column_info import ColumnInfo
 
 class ColumnQdrantRepository:
     """字段向量索引仓库
-    
+
     职责：
     - 管理名为 'data-agent-column' 的 Qdrant Collection
     - 将字段的 Embedding 向量写入 Qdrant，为后续语义检索建立索引
     - 提供向量相似度搜索接口，召回与查询关键词最相关的 Top-K 字段
-    
+
     向量化策略（多维度覆盖）：
     每个字段会生成 3 条向量记录，分别对应：
       1. 字段名（如 "order_amount"）       → 精确匹配
       2. 字段描述（如 "订单金额"）           → 语义匹配
       3. 字段别名（如 ["销售额", "成交额"]） → 别名覆盖
     这样设计是为了从多个语义角度覆盖同一字段，提高召回率。
-    
+
     召回策略：
     - 距离度量：余弦相似度（Cosine Distance），适合文本语义相似度比较
     - 分数阈值：score_threshold=0.6，过滤低相关度的噪音结果
@@ -39,12 +39,12 @@ class ColumnQdrantRepository:
     # Qdrant 中的 Collection 名称，用于隔离不同业务的数据
     collection_name: str = 'data-agent-column'
 
-    def __init__(self, client: AsyncQdrantClient):
+    def __init__(self, client: AsyncQdrantClient) -> None:
         self.client = client
 
-    async def ensure_collection(self):
+    async def ensure_collection(self) -> None:
         """确保 Collection 存在，不存在则自动创建
-        
+
         创建参数说明：
         - vectors_config: 指定向量维度（从配置读取 embedding_size），
           维度必须与 Embedding 模型输出维度一致
@@ -58,7 +58,7 @@ class ColumnQdrantRepository:
     async def upsert(self, ids: list[str], embeddings: list[list[float]], payloads: list[ColumnInfo],
                      batch_size: int = 20):
         """批量写入/更新向量数据（支持分批上传）
-        
+
         参数：
         - ids: 每条记录的唯一标识，用于后续覆盖更新
         - embeddings: 文本对应的 Embedding 向量列表

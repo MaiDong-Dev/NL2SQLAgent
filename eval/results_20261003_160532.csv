@@ -1,0 +1,260 @@
+﻿query,predicted_sql,reference_sql,retrieved_ids,reference_ids,linking_precision,linking_recall,sql_equivalence,sql_equivalence_reason,jev_equivalence,jev_probability,jev_reason,execution_accuracy,execution_reason,predicted_rows,agent_seconds,judge_seconds,case_seconds,jev_input_tokens,jev_cost
+统计各大区的销售总额,"SELECT r.region_name, SUM(o.order_amount) AS total_sales
+FROM fact_order o
+JOIN dim_region r ON o.region_id = r.region_id
+GROUP BY r.region_name;","SELECT r.region_name, SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_region r ON f.region_id = r.region_id GROUP BY r.region_name",dim_date.month|dim_product.category|dim_region.country|dim_region.province|dim_region.region_id|dim_region.region_name|fact_order.order_amount|fact_order.order_quantity|fact_order.region_id,fact_order.order_amount|fact_order.region_id|dim_region.region_id|dim_region.region_name,0.4444444444444444,1.0,nan,,1.0,0.97,Jev 判定等价（总体概率 0.97）,correct,数据一致但列名不同（7 行）,7,23.135,1.385,24.572,1915,8.043e-05
+2025年每个月的订单量是多少,"SELECT d.month AS month, COUNT(f.order_id) AS order_count
+FROM fact_order f
+JOIN dim_date d ON f.date_id = d.date_id
+WHERE d.year = 2025
+GROUP BY d.month
+ORDER BY d.month;","SELECT d.month, COUNT(f.order_id) AS order_count FROM fact_order f JOIN dim_date d ON f.date_id = d.date_id WHERE d.year = 2025 GROUP BY d.month",dim_date.date_id|dim_product.product_name|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity,fact_order.order_id|fact_order.date_id|dim_date.date_id|dim_date.year|dim_date.month,0.5,0.6,nan,,1.0,0.96,Jev 判定等价（总体概率 0.96）,correct,结果一致（12 行）,12,26.045,0.524,26.578,1942,8.1564e-05
+各商品品类的销量排名,"SELECT dim_product.category, SUM(fact_order.order_quantity) AS sales_volume FROM fact_order JOIN dim_product ON fact_order.product_id = dim_product.product_id GROUP BY dim_product.category ORDER BY sales_volume DESC;","SELECT p.category, SUM(f.order_quantity) AS total_quantity FROM fact_order f JOIN dim_product p ON f.product_id = p.product_id GROUP BY p.category ORDER BY total_quantity DESC",dim_product.brand|dim_product.category|dim_product.product_id|dim_product.product_name|fact_order.order_quantity|fact_order.product_id,fact_order.order_quantity|fact_order.product_id|dim_product.product_id|dim_product.category,0.6666666666666666,1.0,nan,,1.0,0.97,Jev 判定等价（总体概率 0.97）,correct,数据一致但列名不同（10 行）,10,15.603,0.519,16.223,1923,8.0766e-05
+黄金会员客户的订单金额一共是多少,"SELECT SUM(fo.order_amount) AS order_amount_total
+FROM dim_customer dc
+JOIN fact_order fo ON dc.customer_id = fo.customer_id
+WHERE dc.member_level = '黄金';",SELECT SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_customer c ON f.customer_id = c.customer_id WHERE c.member_level = '黄金',dim_customer.customer_id|dim_customer.customer_name|dim_customer.member_level|dim_product.brand|dim_product.product_id|fact_order.customer_id|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity|fact_order.product_id,fact_order.order_amount|fact_order.customer_id|dim_customer.customer_id|dim_customer.member_level,0.36363636363636365,1.0,nan,,1.0,0.97,Jev 判定等价（总体概率 0.97）,correct,数据一致但列名不同（1 行）,1,12.321,0.475,12.807,1921,8.0682e-05
+各省的销售额分别是多少,"SELECT dr.province AS 省份, SUM(fo.order_amount) AS 销售额
+FROM fact_order fo
+JOIN dim_region dr ON fo.region_id = dr.region_id
+GROUP BY dr.province","SELECT r.province, SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_region r ON f.region_id = r.region_id GROUP BY r.province",dim_region.province|fact_order.date_id|fact_order.order_amount|fact_order.order_quantity,fact_order.order_amount|fact_order.region_id|dim_region.region_id|dim_region.province,0.5,0.5,nan,,1.0,0.97,Jev 判定等价（总体概率 0.97）,correct,数据一致但列名不同（31 行）,31,10.791,0.491,11.329,1924,8.0808e-05
+华为品牌商品的销售数量是多少,"SELECT COALESCE(SUM(fo.order_quantity), 0) AS 销售数量
+FROM fact_order fo
+JOIN dim_product dp ON fo.product_id = dp.product_id
+WHERE dp.brand = '华为';",SELECT SUM(f.order_quantity) AS total_quantity FROM fact_order f JOIN dim_product p ON f.product_id = p.product_id WHERE p.brand = '华为',dim_date.date_id|dim_product.brand|dim_product.category|dim_product.product_id|dim_product.product_name|dim_region.country|dim_region.province|fact_order.date_id|fact_order.order_amount|fact_order.order_quantity|fact_order.product_id,fact_order.order_quantity|fact_order.product_id|dim_product.product_id|dim_product.brand,0.36363636363636365,1.0,nan,,1.0,0.86,Jev 判定等价（总体概率 0.86）,correct,数据一致但列名不同（1 行）,1,13.676,0.592,14.272,1929,8.1018e-05
+男性客户的平均订单金额是多少,SELECT AVG(f.order_amount) AS avg_order_amount FROM fact_order f JOIN dim_customer c ON f.customer_id = c.customer_id WHERE c.gender = '男';,SELECT AVG(f.order_amount) AS avg_order_amount FROM fact_order f JOIN dim_customer c ON f.customer_id = c.customer_id WHERE c.gender = '男',dim_customer.customer_id|dim_customer.customer_name|dim_customer.gender|dim_date.day|dim_date.quarter|dim_region.country|dim_region.province|dim_region.region_name|fact_order.customer_id|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity,fact_order.order_amount|fact_order.customer_id|dim_customer.customer_id|dim_customer.gender,0.3076923076923077,1.0,nan,,1.0,0.99,Jev 判定等价（总体概率 0.99）,correct,结果一致（1 行）,1,12.777,0.495,13.293,1913,8.0346e-05
+2025年第一季度各大区的销量,"SELECT r.region_name AS 大区, SUM(o.order_quantity) AS 销量
+FROM fact_order o
+JOIN dim_date d ON o.date_id = d.date_id
+JOIN dim_region r ON o.region_id = r.region_id
+WHERE d.year = 2025 AND d.quarter = 'Q1'
+GROUP BY r.region_name
+ORDER BY r.region_name;","SELECT r.region_name, SUM(f.order_quantity) AS total_quantity FROM fact_order f JOIN dim_date d ON f.date_id = d.date_id JOIN dim_region r ON f.region_id = r.region_id WHERE d.year = 2025 AND d.quarter = 'Q1' GROUP BY r.region_name",dim_customer.customer_name|dim_date.date_id|dim_date.quarter|dim_product.brand|dim_product.product_name|dim_region.region_id|dim_region.region_name|fact_order.date_id|fact_order.order_quantity|fact_order.region_id,fact_order.order_quantity|fact_order.date_id|fact_order.region_id|dim_date.date_id|dim_date.year|dim_date.quarter|dim_region.region_id|dim_region.region_name,0.7,0.875,nan,,1.0,0.97,Jev 判定等价（总体概率 0.97）,correct,数据一致但列名不同（7 行）,7,21.112,0.488,21.613,1995,8.379e-05
+GMV 是多少,SELECT SUM(order_amount) AS GMV FROM fact_order;,SELECT SUM(order_amount) AS gmv FROM fact_order,fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity,fact_order.order_amount,0.25,1.0,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,数据一致但列名不同（1 行）,1,14.879,0.454,15.344,1862,7.8204e-05
+2025年各月份的销售额是多少,"SELECT d.month AS 月份, SUM(f.order_amount) AS 销售额
+FROM fact_order f
+JOIN dim_date d ON f.date_id = d.date_id
+WHERE d.year = 2025
+GROUP BY d.month
+ORDER BY d.month;","SELECT d.month, SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_date d ON f.date_id = d.date_id WHERE d.year = 2025 GROUP BY d.month ORDER BY d.month",dim_date.date_id|dim_date.month|dim_date.quarter|dim_product.product_name|fact_order.date_id|fact_order.order_amount|fact_order.order_quantity,fact_order.order_amount|fact_order.date_id|dim_date.date_id|dim_date.year|dim_date.month,0.5714285714285714,0.8,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,数据一致但列名不同（12 行）,12,16.444,0.492,16.96,1951,8.1942e-05
+每个月的订单量和销售额分别是多少,"SELECT d.year, d.month, COUNT(o.order_id) AS order_count, SUM(o.order_amount) AS sales_amount FROM fact_order o JOIN dim_date d ON o.date_id = d.date_id GROUP BY d.year, d.month ORDER BY d.year, d.month;","SELECT d.month, COUNT(f.order_id) AS order_count, SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_date d ON f.date_id = d.date_id GROUP BY d.month ORDER BY d.month",dim_date.date_id|dim_product.product_name|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity,fact_order.order_id|fact_order.order_amount|fact_order.date_id|dim_date.date_id|dim_date.month,0.6666666666666666,0.8,nan,,0.0,0.21,"Jev 判定不等价（总体概率 0.21）；不成立维度: same_group, same_columns",incorrect,"结果不一致：预期 12 行 / 实际 24 行；预期首行=[(('month', 1.0), ('order_count', 2893.0), ('total_amount', 5026021.142391))] 实际首行=[(('month', 1.0), ('order_count', 1331.0), ('sales_amount', 2245858.701778), ('year', 2024.0))]",24,43.256,0.544,43.82,1950,8.19e-05
+销售额最高的大区是哪一个,"SELECT r.region_name
+FROM fact_order f
+JOIN dim_region r ON f.region_id = r.region_id
+GROUP BY r.region_name
+ORDER BY SUM(f.order_amount) DESC
+LIMIT 1;",SELECT r.region_name FROM fact_order f JOIN dim_region r ON f.region_id = r.region_id GROUP BY r.region_name ORDER BY SUM(f.order_amount) DESC LIMIT 1,dim_customer.customer_name|dim_customer.member_level|dim_date.day|dim_product.brand|dim_product.category|dim_region.country|dim_region.province|dim_region.region_id|dim_region.region_name|fact_order.order_amount|fact_order.order_quantity|fact_order.region_id,fact_order.order_amount|fact_order.region_id|dim_region.region_id|dim_region.region_name,0.3333333333333333,1.0,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,结果一致（1 行）,1,13.49,0.464,14.002,1924,8.0808e-05
+销量前三名的商品有哪些,"SELECT p.product_name, SUM(o.order_quantity) AS sales_quantity
+FROM fact_order o
+JOIN dim_product p ON o.product_id = p.product_id
+GROUP BY p.product_id, p.product_name
+ORDER BY sales_quantity DESC
+LIMIT 3;","SELECT p.product_name, SUM(f.order_quantity) AS total_quantity FROM fact_order f JOIN dim_product p ON f.product_id = p.product_id GROUP BY p.product_id, p.product_name ORDER BY total_quantity DESC LIMIT 3",dim_product.brand|dim_product.category|dim_product.product_id|dim_product.product_name|dim_region.province|fact_order.order_quantity|fact_order.product_id,fact_order.order_quantity|fact_order.product_id|dim_product.product_id|dim_product.product_name,0.5714285714285714,1.0,nan,,1.0,0.97,Jev 判定等价（总体概率 0.97）,correct,数据一致但列名不同（3 行）,3,13.811,0.484,14.365,1943,8.1606e-05
+各品牌的销售额排名是怎样的,"SELECT p.brand, SUM(f.order_amount) AS sales_amount
+FROM fact_order AS f
+JOIN dim_product AS p ON f.product_id = p.product_id
+GROUP BY p.brand
+ORDER BY sales_amount DESC;","SELECT p.brand, SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_product p ON f.product_id = p.product_id GROUP BY p.brand ORDER BY total_amount DESC",dim_product.brand|dim_product.product_id|fact_order.order_amount|fact_order.order_quantity|fact_order.product_id,fact_order.order_amount|fact_order.product_id|dim_product.product_id|dim_product.brand,0.8,1.0,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,数据一致但列名不同（61 行）,61,31.619,0.556,32.23,1928,8.0976e-05
+各会员等级客户的客单价是多少,"SELECT c.member_level, AVG(o.order_amount) AS 客单价
+FROM fact_order o
+JOIN dim_customer c ON o.customer_id = c.customer_id
+GROUP BY c.member_level;","SELECT c.member_level, AVG(f.order_amount) AS avg_order_amount FROM fact_order f JOIN dim_customer c ON f.customer_id = c.customer_id GROUP BY c.member_level",dim_customer.customer_id|dim_customer.customer_name|dim_customer.member_level|dim_product.product_id|fact_order.customer_id|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity,fact_order.order_amount|fact_order.customer_id|dim_customer.customer_id|dim_customer.member_level,0.4444444444444444,1.0,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,数据一致但列名不同（4 行）,4,27.783,0.51,28.346,1924,8.0808e-05
+一共有多少笔订单,SELECT COUNT(*) AS order_count FROM fact_order;,SELECT COUNT(order_id) AS order_count FROM fact_order,dim_customer.customer_name|dim_product.brand|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity,fact_order.order_id,0.16666666666666666,1.0,nan,,1.0,0.91,Jev 判定等价（总体概率 0.91）,correct,结果一致（1 行）,1,6.195,0.497,6.7,1862,7.8204e-05
+总销量是多少件,SELECT SUM(order_quantity) AS 总销量 FROM fact_order;,SELECT SUM(order_quantity) AS total_quantity FROM fact_order,fact_order.order_quantity,fact_order.order_quantity,1.0,1.0,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,数据一致但列名不同（1 行）,1,6.197,0.521,6.728,1867,7.8414e-05
+下过单的客户有多少人,SELECT COUNT(DISTINCT customer_id) AS customer_count FROM fact_order;,SELECT COUNT(DISTINCT customer_id) AS customer_count FROM fact_order,dim_customer.customer_id|dim_customer.customer_name|dim_date.date_id|dim_product.product_id|dim_product.product_name|dim_region.province|fact_order.customer_id|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity,fact_order.customer_id,0.09090909090909091,1.0,nan,,1.0,0.99,Jev 判定等价（总体概率 0.99）,correct,结果一致（1 行）,1,12.284,0.489,12.781,1872,7.8624e-05
+男女客户分别下了多少单,"SELECT c.gender AS `性别`, COUNT(o.order_id) AS `订单数`
+FROM dim_customer c
+LEFT JOIN fact_order o ON c.customer_id = o.customer_id
+GROUP BY c.gender
+ORDER BY c.gender;","SELECT c.gender, COUNT(f.order_id) AS order_count FROM fact_order f JOIN dim_customer c ON f.customer_id = c.customer_id GROUP BY c.gender",dim_customer.customer_id|dim_customer.customer_name|dim_customer.gender|fact_order.customer_id|fact_order.date_id|fact_order.order_amount|fact_order.order_id,fact_order.order_id|fact_order.customer_id|dim_customer.customer_id|dim_customer.gender,0.5714285714285714,1.0,nan,,0.0,0.49,Jev 判定不等价（总体概率 0.49）；不成立维度: same_tables,correct,数据一致但列名不同（2 行）,2,12.152,0.537,12.714,1924,8.0808e-05
+广东省的销售额是多少,SELECT SUM(fo.order_amount) AS 销售额 FROM fact_order fo JOIN dim_region dr ON fo.region_id = dr.region_id WHERE dr.province = '广东省';,SELECT SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_region r ON f.region_id = r.region_id WHERE r.province = '广东省',dim_region.province|fact_order.date_id|fact_order.order_amount,fact_order.order_amount|fact_order.region_id|dim_region.region_id|dim_region.province,0.6666666666666666,0.5,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,数据一致但列名不同（1 行）,1,6.657,0.562,7.227,1918,8.0556e-05
+华东大区各省份的销售额分别是多少,"SELECT dr.province, SUM(fo.order_amount) AS `销售额`
+FROM fact_order fo
+JOIN dim_region dr ON fo.region_id = dr.region_id
+WHERE dr.region_name = '华东'
+GROUP BY dr.province;","SELECT r.province, SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_region r ON f.region_id = r.region_id WHERE r.region_name = '华东' GROUP BY r.province",dim_region.province|dim_region.region_id|dim_region.region_name|fact_order.date_id|fact_order.order_amount|fact_order.region_id,fact_order.order_amount|fact_order.region_id|dim_region.region_id|dim_region.region_name|dim_region.province,0.8333333333333334,1.0,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,数据一致但列名不同（7 行）,7,13.047,0.502,13.572,1943,8.1606e-05
+手机数码品类的销售额和销量是多少,"SELECT SUM(f.order_amount) AS 销售额, SUM(f.order_quantity) AS 销量 FROM fact_order f JOIN dim_product p ON f.product_id = p.product_id WHERE p.category = '手机数码';","SELECT SUM(f.order_amount) AS total_amount, SUM(f.order_quantity) AS total_quantity FROM fact_order f JOIN dim_product p ON f.product_id = p.product_id WHERE p.category = '手机数码'",dim_customer.gender|dim_date.date_id|dim_date.day|dim_date.year|dim_product.brand|dim_product.category|dim_product.product_id|dim_region.country|dim_region.province|fact_order.date_id|fact_order.order_amount|fact_order.order_quantity|fact_order.product_id,fact_order.order_amount|fact_order.order_quantity|fact_order.product_id|dim_product.product_id|dim_product.category,0.38461538461538464,1.0,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,数据一致但列名不同（1 行）,1,10.892,0.475,11.377,1943,8.1606e-05
+休闲零食的销量是多少,SELECT SUM(f.order_quantity) AS `销量` FROM fact_order f JOIN dim_product p ON f.product_id = p.product_id WHERE p.category = '休闲零食';,SELECT SUM(f.order_quantity) AS total_quantity FROM fact_order f JOIN dim_product p ON f.product_id = p.product_id WHERE p.category = '休闲零食',dim_date.day|dim_product.brand|dim_product.category|dim_product.product_id|dim_product.product_name|dim_region.province|fact_order.order_amount|fact_order.order_quantity|fact_order.product_id,fact_order.order_quantity|fact_order.product_id|dim_product.product_id|dim_product.category,0.4444444444444444,1.0,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,数据一致但列名不同（1 行）,1,11.048,0.534,11.591,1914,8.0388e-05
+1月份的订单量是多少,"SELECT COUNT(*) AS order_count
+FROM fact_order f
+JOIN dim_date d ON f.date_id = d.date_id
+WHERE d.month = 1;",SELECT COUNT(f.order_id) AS order_count FROM fact_order f JOIN dim_date d ON f.date_id = d.date_id WHERE d.month = 1,dim_customer.customer_name|dim_date.date_id|dim_date.month|dim_date.quarter|dim_product.brand|dim_product.product_name|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity,fact_order.order_id|fact_order.date_id|dim_date.date_id|dim_date.month,0.4,1.0,nan,,1.0,0.9,Jev 判定等价（总体概率 0.90）；写法差异维度: same_agg,correct,结果一致（1 行）,1,18.402,0.503,18.91,1906,8.0052e-05
+2025年1月各大区的销售额是多少,"SELECT r.region_name, SUM(f.order_amount) AS 销售额
+FROM fact_order f
+JOIN dim_region r ON f.region_id = r.region_id
+JOIN dim_date d ON f.date_id = d.date_id
+WHERE d.year = 2025 AND d.month = 1
+GROUP BY r.region_name;","SELECT r.region_name, SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_date d ON f.date_id = d.date_id JOIN dim_region r ON f.region_id = r.region_id WHERE d.year = 2025 AND d.month = 1 GROUP BY r.region_name",dim_date.date_id|dim_date.quarter|dim_product.product_name|dim_region.region_id|dim_region.region_name|fact_order.date_id|fact_order.order_amount|fact_order.order_quantity|fact_order.region_id,fact_order.order_amount|fact_order.date_id|fact_order.region_id|dim_date.date_id|dim_date.year|dim_date.month|dim_region.region_id|dim_region.region_name,0.6666666666666666,0.75,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,数据一致但列名不同（7 行）,7,25.614,0.607,26.229,1981,8.3202e-05
+铂金会员中有多少人下过单,SELECT COUNT(DISTINCT c.customer_id) AS 下单人数 FROM dim_customer c JOIN fact_order f ON c.customer_id = f.customer_id WHERE c.member_level = '铂金';,SELECT COUNT(DISTINCT f.customer_id) AS customer_count FROM fact_order f JOIN dim_customer c ON f.customer_id = c.customer_id WHERE c.member_level = '铂金',dim_customer.customer_id|dim_customer.customer_name|dim_customer.gender|dim_customer.member_level|dim_date.day|dim_product.brand|dim_product.category|dim_product.product_id|dim_product.product_name|dim_region.province|dim_region.region_name|fact_order.customer_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity,fact_order.customer_id|dim_customer.customer_id|dim_customer.member_level,0.2,1.0,nan,,1.0,0.93,Jev 判定等价（总体概率 0.93）,correct,数据一致但列名不同（1 行）,1,12.449,0.507,12.961,1925,8.085e-05
+买过华为品牌商品的客户有多少人,"SELECT COUNT(DISTINCT fo.customer_id) AS customer_count
+FROM fact_order fo
+JOIN dim_product dp ON fo.product_id = dp.product_id
+WHERE dp.brand = '华为'",SELECT COUNT(DISTINCT f.customer_id) AS customer_count FROM fact_order f JOIN dim_product p ON f.product_id = p.product_id WHERE p.brand = '华为',dim_customer.customer_id|dim_customer.customer_name|dim_product.brand|dim_product.category|dim_product.product_id|dim_product.product_name|dim_region.country|dim_region.province|fact_order.customer_id|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity|fact_order.product_id,fact_order.customer_id|fact_order.product_id|dim_product.product_id|dim_product.brand,0.2857142857142857,1.0,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,结果一致（1 行）,1,20.731,0.503,21.246,1923,8.0766e-05
+3月份销量最高的商品品类是哪个,"SELECT p.category
+FROM fact_order f
+JOIN dim_product p ON f.product_id = p.product_id
+JOIN dim_date d ON f.date_id = d.date_id
+WHERE d.month = 3
+GROUP BY p.category
+ORDER BY SUM(f.order_quantity) DESC
+LIMIT 1;",SELECT p.category FROM fact_order f JOIN dim_date d ON f.date_id = d.date_id JOIN dim_product p ON f.product_id = p.product_id WHERE d.month = 3 GROUP BY p.category ORDER BY SUM(f.order_quantity) DESC LIMIT 1,dim_customer.member_level|dim_date.date_id|dim_date.day|dim_date.month|dim_date.quarter|dim_product.brand|dim_product.category|dim_product.product_id|dim_product.product_name|dim_region.country|dim_region.province|fact_order.date_id|fact_order.order_amount|fact_order.order_quantity|fact_order.product_id,fact_order.order_quantity|fact_order.date_id|fact_order.product_id|dim_date.date_id|dim_date.month|dim_product.product_id|dim_product.category,0.4666666666666667,1.0,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,结果一致（1 行）,1,17.426,0.54,17.979,1960,8.232e-05
+各省分别有多少客户下过单,"SELECT d.province AS 省份, COUNT(DISTINCT f.customer_id) AS 客户数
+FROM fact_order f
+JOIN dim_region d ON f.region_id = d.region_id
+GROUP BY d.province;","SELECT r.province, COUNT(DISTINCT f.customer_id) AS customer_count FROM fact_order f JOIN dim_region r ON f.region_id = r.region_id GROUP BY r.province",dim_customer.customer_id|dim_customer.customer_name|dim_region.province|fact_order.customer_id|fact_order.date_id|fact_order.order_amount|fact_order.order_id,fact_order.customer_id|fact_order.region_id|dim_region.region_id|dim_region.province,0.2857142857142857,0.5,nan,,1.0,0.97,Jev 判定等价（总体概率 0.97）,correct,数据一致但列名不同（31 行）,31,31.93,0.488,32.465,1931,8.1102e-05
+各省的销售额占总额的百分比是多少,"SELECT r.province, ROUND(SUM(o.order_amount) * 100.0 / (SELECT SUM(order_amount) FROM fact_order), 2) AS percentage
+FROM fact_order o
+JOIN dim_region r ON o.region_id = r.region_id
+GROUP BY r.province
+ORDER BY percentage DESC;","SELECT r.province, ROUND(SUM(f.order_amount) / (SELECT SUM(order_amount) FROM fact_order) * 100, 2) AS amount_ratio FROM fact_order f JOIN dim_region r ON f.region_id = r.region_id GROUP BY r.province",dim_date.quarter|dim_product.brand|dim_product.product_name|dim_region.province|fact_order.date_id|fact_order.order_amount|fact_order.order_quantity,fact_order.order_amount|fact_order.region_id|dim_region.region_id|dim_region.province,0.2857142857142857,0.5,nan,,1.0,0.96,Jev 判定等价（总体概率 0.96）,correct,数据一致但列名不同（31 行）,31,39.8,0.488,40.349,1971,8.2782e-05
+各商品品类的平均订单金额是多少,"SELECT dp.category AS 商品品类, AVG(fo.order_amount) AS 平均订单金额
+FROM fact_order fo
+JOIN dim_product dp ON fo.product_id = dp.product_id
+GROUP BY dp.category;","SELECT p.category, AVG(f.order_amount) AS avg_order_amount FROM fact_order f JOIN dim_product p ON f.product_id = p.product_id GROUP BY p.category",dim_date.day|dim_date.quarter|dim_product.brand|dim_product.category|dim_product.product_id|dim_product.product_name|dim_region.country|dim_region.province|dim_region.region_name|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity|fact_order.product_id,fact_order.order_amount|fact_order.product_id|dim_product.product_id|dim_product.category,0.2857142857142857,1.0,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,数据一致但列名不同（10 行）,10,20.89,0.482,21.427,1932,8.1144e-05
+女性黄金会员的订单数是多少,"SELECT COUNT(fo.order_id) AS order_count
+FROM dim_customer dc
+JOIN fact_order fo ON dc.customer_id = fo.customer_id
+WHERE dc.gender = '女' AND dc.member_level = '黄金';",SELECT COUNT(f.order_id) AS order_count FROM fact_order f JOIN dim_customer c ON f.customer_id = c.customer_id WHERE c.gender = '女' AND c.member_level = '黄金',dim_customer.customer_id|dim_customer.gender|dim_customer.member_level|fact_order.customer_id|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity,fact_order.order_id|fact_order.customer_id|dim_customer.customer_id|dim_customer.gender|dim_customer.member_level,0.625,1.0,nan,,1.0,0.97,Jev 判定等价（总体概率 0.97）,correct,结果一致（1 行）,1,31.242,0.49,31.737,1931,8.1102e-05
+各会员等级分别下了多少单,"SELECT c.member_level, COUNT(o.order_id) AS order_count FROM dim_customer c LEFT JOIN fact_order o ON c.customer_id = o.customer_id GROUP BY c.member_level;","SELECT c.member_level, COUNT(f.order_id) AS order_count FROM fact_order f JOIN dim_customer c ON f.customer_id = c.customer_id GROUP BY c.member_level",dim_customer.member_level|fact_order.date_id|fact_order.order_amount|fact_order.order_id,fact_order.order_id|fact_order.customer_id|dim_customer.customer_id|dim_customer.member_level,0.5,0.5,nan,,0.0,0.46,Jev 判定不等价（总体概率 0.46）；不成立维度: same_tables,correct,结果一致（4 行）,4,17.768,0.53,18.324,1916,8.0472e-05
+2025年1月与3月的销售额相差多少,"SELECT ABS(
+  COALESCE(SUM(CASE WHEN d.month = 1 THEN f.order_amount END), 0) -
+  COALESCE(SUM(CASE WHEN d.month = 3 THEN f.order_amount END), 0)
+) AS sales_difference
+FROM fact_order f
+JOIN dim_date d ON f.date_id = d.date_id
+WHERE d.year = 2025 AND d.month IN (1, 3);",SELECT SUM(CASE WHEN d.month = 1 THEN f.order_amount ELSE 0 END) - SUM(CASE WHEN d.month = 3 THEN f.order_amount ELSE 0 END) AS amount_diff FROM fact_order f JOIN dim_date d ON f.date_id = d.date_id WHERE d.year = 2025,dim_date.date_id|dim_date.quarter|dim_product.product_name|dim_region.province|dim_region.region_name|fact_order.date_id|fact_order.order_amount|fact_order.order_quantity,fact_order.order_amount|fact_order.date_id|dim_date.date_id|dim_date.year|dim_date.month,0.375,0.6,nan,,0.0,0.4,Jev 判定不等价（总体概率 0.40）,incorrect,"结果不一致：预期 1 行 / 实际 1 行；预期首行=[(('amount_diff', -321271.00582),)] 实际首行=[(('sales_difference', 321271.00582),)]",1,15.857,0.53,16.42,2009,8.4378e-05
+销售额超过30000的省份及其销售额是多少,"SELECT d.province, SUM(f.order_amount) AS sales_amount
+FROM fact_order f
+JOIN dim_region d ON f.region_id = d.region_id
+GROUP BY d.province
+HAVING SUM(f.order_amount) > 30000;","SELECT r.province, SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_region r ON f.region_id = r.region_id GROUP BY r.province HAVING SUM(f.order_amount) > 30000",dim_customer.customer_name|dim_date.quarter|dim_region.province|fact_order.date_id|fact_order.order_amount|fact_order.order_quantity,fact_order.order_amount|fact_order.region_id|dim_region.region_id|dim_region.province,0.3333333333333333,0.5,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,数据一致但列名不同（30 行）,30,21.254,0.561,21.864,1956,8.2152e-05
+2025年3月华东大区各品类的销售额是多少,"SELECT p.category, SUM(f.order_amount) AS sales_amount
+FROM fact_order f
+JOIN dim_product p ON f.product_id = p.product_id
+JOIN dim_region r ON f.region_id = r.region_id
+JOIN dim_date d ON f.date_id = d.date_id
+WHERE d.year = 2025
+  AND d.month = 3
+  AND r.region_name = '华东'
+GROUP BY p.category;","SELECT p.category, SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_date d ON f.date_id = d.date_id JOIN dim_product p ON f.product_id = p.product_id JOIN dim_region r ON f.region_id = r.region_id WHERE d.year = 2025 AND d.month = 3 AND r.region_name = '华东' GROUP BY p.category",dim_date.date_id|dim_date.quarter|dim_product.category|dim_product.product_name|dim_region.region_id|dim_region.region_name|fact_order.date_id|fact_order.order_amount|fact_order.order_quantity|fact_order.region_id,fact_order.order_amount|fact_order.date_id|fact_order.product_id|fact_order.region_id|dim_date.date_id|dim_date.year|dim_date.month|dim_product.product_id|dim_product.category|dim_region.region_id|dim_region.region_name,0.7,0.6363636363636364,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,数据一致但列名不同（10 行）,10,23.334,0.472,23.822,2024,8.5008e-05
+2025年2月销量前三的商品是哪些,"SELECT p.product_name, SUM(f.order_quantity) AS total_sales
+FROM fact_order f
+JOIN dim_product p ON f.product_id = p.product_id
+JOIN dim_date d ON f.date_id = d.date_id
+WHERE d.year = 2025 AND d.month = 2
+GROUP BY p.product_id, p.product_name
+ORDER BY total_sales DESC
+LIMIT 3;","SELECT p.product_name, SUM(f.order_quantity) AS total_quantity FROM fact_order f JOIN dim_date d ON f.date_id = d.date_id JOIN dim_product p ON f.product_id = p.product_id WHERE d.year = 2025 AND d.month = 2 GROUP BY p.product_id, p.product_name ORDER BY total_quantity DESC LIMIT 3",dim_date.date_id|dim_date.quarter|dim_product.brand|dim_product.category|dim_product.product_id|dim_product.product_name|fact_order.date_id|fact_order.order_amount|fact_order.order_quantity|fact_order.product_id,fact_order.order_quantity|fact_order.date_id|fact_order.product_id|dim_date.date_id|dim_date.year|dim_date.month|dim_product.product_id|dim_product.product_name,0.6,0.75,nan,,1.0,0.97,Jev 判定等价（总体概率 0.97）,correct,数据一致但列名不同（3 行）,3,20.963,0.45,21.422,2004,8.4168e-05
+各品类分别有多少客户买过,"SELECT p.category AS 品类, COUNT(DISTINCT f.customer_id) AS 客户数
+FROM fact_order f
+JOIN dim_product p ON f.product_id = p.product_id
+GROUP BY p.category;","SELECT p.category, COUNT(DISTINCT f.customer_id) AS customer_count FROM fact_order f JOIN dim_product p ON f.product_id = p.product_id GROUP BY p.category",dim_customer.customer_id|dim_customer.customer_name|dim_product.category|dim_product.product_id|fact_order.customer_id|fact_order.order_quantity|fact_order.product_id,fact_order.customer_id|fact_order.product_id|dim_product.product_id|dim_product.category,0.5714285714285714,1.0,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,数据一致但列名不同（10 行）,10,16.507,0.59,17.174,1928,8.0976e-05
+手机数码品类的销售额占总销售额的百分比是多少（保留两位小数）,"SELECT ROUND(SUM(CASE WHEN d.category = '手机数码' THEN f.order_amount ELSE 0 END) / SUM(f.order_amount) * 100, 2) AS sales_percentage
+FROM fact_order f
+LEFT JOIN dim_product d ON f.product_id = d.product_id;","SELECT ROUND(SUM(f.order_amount) / (SELECT SUM(order_amount) FROM fact_order) * 100, 2) AS amount_ratio FROM fact_order f JOIN dim_product p ON f.product_id = p.product_id WHERE p.category = '手机数码'",dim_customer.gender|dim_date.date_id|dim_date.day|dim_date.quarter|dim_date.year|dim_product.brand|dim_product.category|dim_product.product_id|dim_product.product_name|dim_region.country|dim_region.province|fact_order.date_id|fact_order.order_amount|fact_order.order_quantity|fact_order.product_id,fact_order.order_amount|fact_order.product_id|dim_product.product_id|dim_product.category,0.26666666666666666,1.0,nan,,1.0,0.71,Jev 判定等价（总体概率 0.71）；写法差异维度: same_tables,correct,数据一致但列名不同（1 行）,1,23.886,0.524,24.426,1984,8.3328e-05
+单笔订单金额最高是多少,SELECT order_amount AS max_order_amount FROM fact_order ORDER BY order_amount DESC LIMIT 1;,SELECT MAX(order_amount) AS max_order_amount FROM fact_order,dim_customer.member_level|dim_date.day|dim_region.country|dim_region.province|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity,fact_order.order_amount,0.125,1.0,nan,,1.0,0.91,"Jev 判定等价（总体概率 0.91）；写法差异维度: same_agg, same_limit",correct,结果一致（1 行）,1,12.241,0.514,12.764,1876,7.8792e-05
+订单金额超过5000元的订单有多少笔,SELECT COUNT(*) AS order_count FROM fact_order WHERE order_amount > 5000;,SELECT COUNT(order_id) AS order_count FROM fact_order WHERE order_amount > 5000,dim_region.province|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity,fact_order.order_id|fact_order.order_amount,0.4,1.0,nan,,1.0,0.97,Jev 判定等价（总体概率 0.97）；写法差异维度: same_agg,correct,结果一致（1 行）,1,11.764,0.462,12.236,1890,7.938e-05
+2025年3月每天的订单量是多少,"SELECT d.day, COUNT(f.order_id) AS order_count
+FROM fact_order f
+JOIN dim_date d ON f.date_id = d.date_id
+WHERE d.year = 2025 AND d.month = 3
+GROUP BY d.day
+ORDER BY d.day;","SELECT d.day, COUNT(f.order_id) AS order_count FROM fact_order f JOIN dim_date d ON f.date_id = d.date_id WHERE d.year = 2025 AND d.month = 3 GROUP BY d.day ORDER BY d.day",dim_date.date_id|dim_date.quarter|dim_product.product_name|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity,fact_order.order_id|fact_order.date_id|dim_date.date_id|dim_date.year|dim_date.month|dim_date.day,0.42857142857142855,0.5,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,结果一致（31 行）,31,22.905,0.473,23.382,1957,8.2194e-05
+下单金额最高的前5名客户是谁,"SELECT c.customer_name, SUM(o.order_amount) AS total_order_amount
+FROM dim_customer c
+JOIN fact_order o ON c.customer_id = o.customer_id
+GROUP BY c.customer_id, c.customer_name
+ORDER BY total_order_amount DESC
+LIMIT 5;","SELECT c.customer_name, SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_customer c ON f.customer_id = c.customer_id GROUP BY c.customer_id, c.customer_name ORDER BY total_amount DESC LIMIT 5",dim_customer.customer_id|dim_customer.customer_name|dim_customer.member_level|dim_date.day|dim_product.product_id|dim_product.product_name|dim_region.country|dim_region.province|fact_order.customer_id|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity|fact_order.product_id,fact_order.order_amount|fact_order.customer_id|dim_customer.customer_id|dim_customer.customer_name,0.2857142857142857,1.0,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,数据一致但列名不同（5 行）,5,22.333,0.455,22.858,1947,8.1774e-05
+各会员等级购买手机数码品类的销售额是多少,"SELECT c.member_level, SUM(o.order_amount) AS sales_amount
+FROM fact_order o
+JOIN dim_product p ON o.product_id = p.product_id
+JOIN dim_customer c ON o.customer_id = c.customer_id
+WHERE p.category = '手机数码'
+GROUP BY c.member_level;","SELECT c.member_level, SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_customer c ON f.customer_id = c.customer_id JOIN dim_product p ON f.product_id = p.product_id WHERE p.category = '手机数码' GROUP BY c.member_level",dim_customer.gender|dim_customer.member_level|dim_date.date_id|dim_date.day|dim_date.year|dim_product.brand|dim_product.category|dim_product.product_id|dim_region.country|dim_region.province|fact_order.date_id|fact_order.order_amount|fact_order.order_quantity|fact_order.product_id,fact_order.order_amount|fact_order.customer_id|fact_order.product_id|dim_customer.customer_id|dim_customer.member_level|dim_product.product_id|dim_product.category,0.35714285714285715,0.7142857142857143,nan,,1.0,0.97,Jev 判定等价（总体概率 0.97）,correct,数据一致但列名不同（4 行）,4,15.75,0.716,16.48,1971,8.2782e-05
+各大区的订单数、客户数、销售额和销量分别是多少,"SELECT r.region_name, COUNT(f.order_id) AS order_count, COUNT(DISTINCT f.customer_id) AS customer_count, SUM(f.order_amount) AS gmv, SUM(f.order_quantity) AS sales_volume FROM fact_order f JOIN dim_region r ON f.region_id = r.region_id GROUP BY r.region_id, r.region_name ORDER BY r.region_name;","SELECT r.region_name, COUNT(f.order_id) AS order_count, COUNT(DISTINCT f.customer_id) AS customer_count, SUM(f.order_amount) AS total_amount, SUM(f.order_quantity) AS total_quantity FROM fact_order f JOIN dim_region r ON f.region_id = r.region_id GROUP BY r.region_name",dim_customer.customer_id|dim_customer.customer_name|dim_product.product_id|dim_region.region_id|dim_region.region_name|fact_order.customer_id|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity|fact_order.region_id,fact_order.order_id|fact_order.customer_id|fact_order.order_amount|fact_order.order_quantity|fact_order.region_id|dim_region.region_id|dim_region.region_name,0.6363636363636364,1.0,nan,,1.0,0.95,Jev 判定等价（总体概率 0.95）,incorrect,"结果不一致：预期 7 行 / 实际 31 行；预期首行=[(('customer_count', 87.0), ('order_count', 2479.0), ('region_name', '西北'), ('total_amount', 4041609.61264), ('total_quantity', 10546.0))] 实际首行=[(('customer_count', 1.0), ('gmv', 23587.629883), ('order_count', 13.0), ('region_name', '西北'), ('sales_volume', 57.0))]",31,26.646,0.44,27.138,1995,8.379e-05
+华为品牌在华东大区的销量是多少,"SELECT SUM(fo.order_quantity) AS 销量
+FROM fact_order fo
+JOIN dim_product dp ON fo.product_id = dp.product_id
+JOIN dim_region dr ON fo.region_id = dr.region_id
+WHERE dp.brand = '华为' AND dr.region_name = '华东';",SELECT SUM(f.order_quantity) AS total_quantity FROM fact_order f JOIN dim_product p ON f.product_id = p.product_id JOIN dim_region r ON f.region_id = r.region_id WHERE p.brand = '华为' AND r.region_name = '华东',dim_product.brand|dim_product.product_id|dim_region.country|dim_region.province|dim_region.region_id|dim_region.region_name|fact_order.order_quantity|fact_order.product_id|fact_order.region_id,fact_order.order_quantity|fact_order.product_id|fact_order.region_id|dim_product.product_id|dim_product.brand|dim_region.region_id|dim_region.region_name,0.7777777777777778,1.0,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,数据一致但列名不同（1 行）,1,8.222,0.467,8.714,1964,8.2488e-05
+2025年1月到2月的销售额是多少,SELECT SUM(f.order_amount) AS 销售额 FROM fact_order f JOIN dim_date d ON f.date_id = d.date_id WHERE d.year = 2025 AND d.month BETWEEN 1 AND 2;,SELECT SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_date d ON f.date_id = d.date_id WHERE d.year = 2025 AND d.month BETWEEN 1 AND 2,dim_date.date_id|dim_date.quarter|dim_product.product_name|fact_order.date_id|fact_order.order_amount|fact_order.order_quantity,fact_order.order_amount|fact_order.date_id|dim_date.date_id|dim_date.year|dim_date.month,0.5,0.6,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,数据一致但列名不同（1 行）,1,11.638,0.472,12.116,1940,8.148e-05
+2025年平均每天有多少笔订单,"SELECT ROUND(COUNT(f.order_id) / COUNT(DISTINCT d.date_id), 2) AS avg_orders_per_day
+FROM dim_date d
+LEFT JOIN fact_order f ON d.date_id = f.date_id
+WHERE d.year = 2025;","SELECT ROUND(COUNT(f.order_id) / COUNT(DISTINCT d.date_id), 2) AS avg_daily_orders FROM fact_order f JOIN dim_date d ON f.date_id = d.date_id WHERE d.year = 2025",dim_date.date_id|dim_date.day|dim_date.quarter|dim_region.country|dim_region.province|dim_region.region_name|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity,fact_order.order_id|fact_order.date_id|dim_date.date_id|dim_date.year,0.3,0.75,nan,,1.0,0.69,Jev 判定等价（总体概率 0.69）；写法差异维度: same_tables,correct,数据一致但列名不同（1 行）,1,29.875,0.491,30.377,1952,8.1984e-05
+鞋靴品类中耐克品牌的销售额是多少,"SELECT SUM(f.order_amount) AS sales_amount
+FROM fact_order f
+JOIN dim_product p ON f.product_id = p.product_id
+WHERE p.category = '鞋靴' AND p.brand = '耐克';",SELECT SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_product p ON f.product_id = p.product_id WHERE p.category = '鞋靴' AND p.brand = '耐克',dim_product.brand|dim_product.category|dim_product.product_id|dim_product.product_name|fact_order.order_amount|fact_order.order_quantity|fact_order.product_id,fact_order.order_amount|fact_order.product_id|dim_product.product_id|dim_product.category|dim_product.brand,0.7142857142857143,1.0,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,数据一致但列名不同（1 行）,1,10.158,0.558,10.721,1937,8.1354e-05
+广东省男性客户的订单数是多少,"SELECT COUNT(fo.order_id) AS order_count
+FROM fact_order fo
+JOIN dim_region dr ON fo.region_id = dr.region_id
+JOIN dim_customer dc ON fo.customer_id = dc.customer_id
+WHERE dr.province = '广东省'
+  AND dc.gender = '男';",SELECT COUNT(f.order_id) AS order_count FROM fact_order f JOIN dim_customer c ON f.customer_id = c.customer_id JOIN dim_region r ON f.region_id = r.region_id WHERE r.province = '广东省' AND c.gender = '男',dim_customer.customer_id|dim_customer.customer_name|dim_customer.gender|dim_region.province|dim_region.region_name|fact_order.customer_id|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity,fact_order.order_id|fact_order.customer_id|fact_order.region_id|dim_customer.customer_id|dim_customer.gender|dim_region.region_id|dim_region.province,0.5,0.7142857142857143,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,结果一致（1 行）,1,27.034,0.503,27.572,1962,8.2404e-05
+2025年2月各会员等级的销售额是多少,"SELECT c.member_level, SUM(o.order_amount) AS sales_amount
+FROM fact_order o
+JOIN dim_date d ON o.date_id = d.date_id
+JOIN dim_customer c ON o.customer_id = c.customer_id
+WHERE d.year = 2025 AND d.month = 2
+GROUP BY c.member_level;","SELECT c.member_level, SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_customer c ON f.customer_id = c.customer_id JOIN dim_date d ON f.date_id = d.date_id WHERE d.year = 2025 AND d.month = 2 GROUP BY c.member_level",dim_customer.member_level|dim_date.date_id|dim_date.quarter|dim_product.product_name|fact_order.date_id|fact_order.order_amount|fact_order.order_id,fact_order.order_amount|fact_order.customer_id|fact_order.date_id|dim_customer.customer_id|dim_customer.member_level|dim_date.date_id|dim_date.year|dim_date.month,0.5714285714285714,0.5,nan,,1.0,0.97,Jev 判定等价（总体概率 0.97）,correct,数据一致但列名不同（4 行）,4,20.761,0.484,21.252,1980,8.316e-05
+销售额前5的商品是哪些,"SELECT p.product_name, SUM(o.order_amount) AS sales_amount
+FROM fact_order o
+JOIN dim_product p ON o.product_id = p.product_id
+GROUP BY p.product_id, p.product_name
+ORDER BY sales_amount DESC
+LIMIT 5;","SELECT p.product_name, SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_product p ON f.product_id = p.product_id GROUP BY p.product_id, p.product_name ORDER BY total_amount DESC LIMIT 5",dim_product.brand|dim_product.category|dim_product.product_id|dim_product.product_name|fact_order.order_amount|fact_order.order_quantity|fact_order.product_id,fact_order.order_amount|fact_order.product_id|dim_product.product_id|dim_product.product_name,0.5714285714285714,1.0,nan,,1.0,0.97,Jev 判定等价（总体概率 0.97）,correct,数据一致但列名不同（5 行）,5,20.896,0.498,21.46,1943,8.1606e-05
+各品牌分别有多少客户购买过,"SELECT p.brand AS 品牌, COUNT(DISTINCT f.customer_id) AS 客户数
+FROM fact_order f
+JOIN dim_product p ON f.product_id = p.product_id
+GROUP BY p.brand;","SELECT p.brand, COUNT(DISTINCT f.customer_id) AS customer_count FROM fact_order f JOIN dim_product p ON f.product_id = p.product_id GROUP BY p.brand",dim_customer.customer_id|dim_customer.customer_name|dim_product.brand|dim_product.category|dim_product.product_id|fact_order.customer_id|fact_order.order_quantity|fact_order.product_id,fact_order.customer_id|fact_order.product_id|dim_product.product_id|dim_product.brand,0.5,1.0,nan,,1.0,0.97,Jev 判定等价（总体概率 0.97）,correct,数据一致但列名不同（61 行）,61,23.45,0.465,23.985,1929,8.1018e-05
+2025年订单量最多的月份是哪个月，该月有多少笔订单,"SELECT d.month, COUNT(f.order_id) AS order_count
+FROM fact_order f
+JOIN dim_date d ON f.date_id = d.date_id
+WHERE d.year = 2025
+GROUP BY d.month
+ORDER BY order_count DESC
+LIMIT 1;","SELECT d.month, COUNT(f.order_id) AS order_count FROM fact_order f JOIN dim_date d ON f.date_id = d.date_id WHERE d.year = 2025 GROUP BY d.month ORDER BY order_count DESC LIMIT 1",dim_date.date_id|dim_date.month|dim_date.quarter|dim_product.product_name|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity,fact_order.order_id|fact_order.date_id|dim_date.date_id|dim_date.year|dim_date.month,0.5,0.8,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,结果一致（1 行）,1,30.058,0.455,30.525,1964,8.2488e-05
+平均每笔订单卖出多少件商品（保留两位小数）,"SELECT ROUND(AVG(order_quantity), 2) AS avg_quantity_per_order FROM fact_order;","SELECT ROUND(SUM(order_quantity) / COUNT(order_id), 2) AS avg_quantity_per_order FROM fact_order",dim_date.day|dim_date.quarter|dim_product.brand|dim_product.category|dim_product.product_id|dim_product.product_name|dim_region.country|dim_region.province|dim_region.region_name|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity|fact_order.product_id,fact_order.order_quantity|fact_order.order_id,0.14285714285714285,1.0,nan,,1.0,0.84,Jev 判定等价（总体概率 0.84）；写法差异维度: same_agg,correct,结果一致（1 行）,1,16.703,0.515,17.229,1897,7.9674e-05
+各省的客单价是多少,"SELECT r.province AS 省份, AVG(o.order_amount) AS 客单价
+FROM fact_order o
+JOIN dim_region r ON o.region_id = r.region_id
+GROUP BY r.province
+ORDER BY r.province;","SELECT r.province, AVG(f.order_amount) AS avg_order_amount FROM fact_order f JOIN dim_region r ON f.region_id = r.region_id GROUP BY r.province",dim_region.province|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity,fact_order.order_amount|fact_order.region_id|dim_region.region_id|dim_region.province,0.4,0.5,nan,,1.0,0.96,Jev 判定等价（总体概率 0.96）,correct,数据一致但列名不同（31 行）,31,39.693,0.493,40.234,1929,8.1018e-05
+除手机数码外其他品类的销售额是多少,"SELECT dp.category, SUM(fo.order_amount) AS sales_amount
+FROM fact_order fo
+JOIN dim_product dp ON fo.product_id = dp.product_id
+WHERE dp.category <> '手机数码'
+GROUP BY dp.category;",SELECT SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_product p ON f.product_id = p.product_id WHERE p.category <> '手机数码',dim_customer.gender|dim_date.date_id|dim_date.day|dim_date.year|dim_product.brand|dim_product.category|dim_region.country|dim_region.province|fact_order.date_id|fact_order.order_amount|fact_order.order_quantity,fact_order.order_amount|fact_order.product_id|dim_product.product_id|dim_product.category,0.18181818181818182,0.5,nan,,0.0,0.07,"Jev 判定不等价（总体概率 0.07）；不成立维度: same_agg, same_group, same_columns",incorrect,"结果不一致：预期 1 行 / 实际 9 行；预期首行=[(('total_amount', 53999621.369064),)] 实际首行=[(('category', '休闲零食'), ('sales_amount', 4106117.948216))]",9,15.55,0.46,16.045,1933,8.1186e-05
+2025年3月比2月的订单量多了多少笔,"SELECT COUNT(CASE WHEN d.month = 3 THEN f.order_id END) - COUNT(CASE WHEN d.month = 2 THEN f.order_id END) AS order_diff
+FROM fact_order f
+JOIN dim_date d ON f.date_id = d.date_id
+WHERE d.year = 2025 AND d.month IN (2, 3);",SELECT SUM(CASE WHEN d.month = 3 THEN 1 ELSE 0 END) - SUM(CASE WHEN d.month = 2 THEN 1 ELSE 0 END) AS order_growth FROM fact_order f JOIN dim_date d ON f.date_id = d.date_id WHERE d.year = 2025,dim_date.date_id|dim_date.quarter|dim_product.product_name|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity,fact_order.order_id|fact_order.date_id|dim_date.date_id|dim_date.year|dim_date.month,0.42857142857142855,0.6,nan,,1.0,0.9,Jev 判定等价（总体概率 0.90）；写法差异维度: same_agg,correct,数据一致但列名不同（1 行）,1,25.328,0.48,25.82,1989,8.3538e-05
+各品类的销量占总销量的百分比是多少（保留两位小数）,"SELECT
+    dp.category AS 品类,
+    ROUND(SUM(fo.order_quantity) * 100.0 / (SELECT SUM(order_quantity) FROM fact_order), 2) AS 销量占比
+FROM fact_order fo
+JOIN dim_product dp ON fo.product_id = dp.product_id
+GROUP BY dp.category
+ORDER BY 销量占比 DESC;","SELECT p.category, ROUND(SUM(f.order_quantity) / (SELECT SUM(order_quantity) FROM fact_order) * 100, 2) AS quantity_ratio FROM fact_order f JOIN dim_product p ON f.product_id = p.product_id GROUP BY p.category",dim_date.quarter|dim_product.brand|dim_product.category|dim_product.product_name|dim_region.province|fact_order.order_amount|fact_order.order_quantity,fact_order.order_quantity|fact_order.product_id|dim_product.product_id|dim_product.category,0.2857142857142857,0.5,nan,,1.0,0.96,Jev 判定等价（总体概率 0.96）,correct,数据一致但列名不同（10 行）,10,23.729,0.454,24.249,1995,8.379e-05
+2025年3月各品牌的销售额排名是怎样的,"SELECT dp.brand, SUM(fo.order_amount) AS sales_amount
+FROM fact_order fo
+JOIN dim_date dd ON fo.date_id = dd.date_id
+JOIN dim_product dp ON fo.product_id = dp.product_id
+WHERE dd.year = 2025 AND dd.month = 3
+GROUP BY dp.brand
+ORDER BY sales_amount DESC;","SELECT p.brand, SUM(f.order_amount) AS total_amount FROM fact_order f JOIN dim_date d ON f.date_id = d.date_id JOIN dim_product p ON f.product_id = p.product_id WHERE d.year = 2025 AND d.month = 3 GROUP BY p.brand ORDER BY total_amount DESC",dim_date.date_id|dim_date.quarter|dim_product.brand|dim_product.product_id|dim_product.product_name|fact_order.date_id|fact_order.order_amount|fact_order.order_quantity|fact_order.product_id,fact_order.order_amount|fact_order.date_id|fact_order.product_id|dim_date.date_id|dim_date.year|dim_date.month|dim_product.product_id|dim_product.brand,0.6666666666666666,0.75,nan,,1.0,0.97,Jev 判定等价（总体概率 0.97）,correct,数据一致但列名不同（61 行）,61,15.726,0.481,16.217,1989,8.3538e-05
+2025年1月各大区的销量排名是怎样的,"SELECT r.region_name AS 大区, SUM(f.order_quantity) AS 销量
+FROM fact_order f
+JOIN dim_date d ON f.date_id = d.date_id
+JOIN dim_region r ON f.region_id = r.region_id
+WHERE d.year = 2025 AND d.month = 1
+GROUP BY r.region_name
+ORDER BY 销量 DESC;","SELECT r.region_name, SUM(f.order_quantity) AS total_quantity FROM fact_order f JOIN dim_date d ON f.date_id = d.date_id JOIN dim_region r ON f.region_id = r.region_id WHERE d.year = 2025 AND d.month = 1 GROUP BY r.region_name ORDER BY total_quantity DESC",dim_date.date_id|dim_date.quarter|dim_product.product_name|dim_region.region_id|dim_region.region_name|fact_order.date_id|fact_order.order_quantity|fact_order.region_id,fact_order.order_quantity|fact_order.date_id|fact_order.region_id|dim_date.date_id|dim_date.year|dim_date.month|dim_region.region_id|dim_region.region_name,0.75,0.75,nan,,1.0,0.98,Jev 判定等价（总体概率 0.98）,correct,数据一致但列名不同（7 行）,7,20.707,0.478,21.201,1999,8.3958e-05
+买过休闲零食的女性客户有多少人,"SELECT COUNT(DISTINCT c.customer_id) AS female_customer_count
+FROM dim_customer c
+JOIN fact_order o ON c.customer_id = o.customer_id
+JOIN dim_product p ON o.product_id = p.product_id
+WHERE c.gender = '女' AND p.category = '休闲零食'",SELECT COUNT(DISTINCT f.customer_id) AS customer_count FROM fact_order f JOIN dim_customer c ON f.customer_id = c.customer_id JOIN dim_product p ON f.product_id = p.product_id WHERE p.category = '休闲零食' AND c.gender = '女',dim_customer.customer_id|dim_customer.customer_name|dim_customer.gender|dim_date.day|dim_product.brand|dim_product.category|dim_product.product_id|dim_product.product_name|dim_region.province|fact_order.customer_id|fact_order.date_id|fact_order.order_amount|fact_order.order_id|fact_order.order_quantity|fact_order.product_id,fact_order.customer_id|fact_order.product_id|dim_customer.customer_id|dim_customer.gender|dim_product.product_id|dim_product.category,0.4,1.0,nan,,1.0,0.97,Jev 判定等价（总体概率 0.97）,correct,数据一致但列名不同（1 行）,1,26.463,0.558,27.058,1967,8.2614e-05
+各会员等级的销售额和销量分别是多少,"SELECT dc.member_level AS 会员等级, SUM(fo.order_amount) AS 销售额, SUM(fo.order_quantity) AS 销量 FROM fact_order fo JOIN dim_customer dc ON fo.customer_id = dc.customer_id GROUP BY dc.member_level;","SELECT c.member_level, SUM(f.order_amount) AS total_amount, SUM(f.order_quantity) AS total_quantity FROM fact_order f JOIN dim_customer c ON f.customer_id = c.customer_id GROUP BY c.member_level",dim_customer.member_level|fact_order.order_amount|fact_order.order_quantity,fact_order.order_amount|fact_order.order_quantity|fact_order.customer_id|dim_customer.customer_id|dim_customer.member_level,1.0,0.6,nan,,1.0,0.97,Jev 判定等价（总体概率 0.97）,correct,数据一致但列名不同（4 行）,4,36.123,0.51,36.694,1951,8.1942e-05

@@ -20,15 +20,16 @@ from langchain_core.prompts import PromptTemplate
 from langgraph.runtime import Runtime
 
 from server.agent.context import DataAgentContext
+from server.agent.events import EventType, RunStatus
 from server.agent.llm import llm
 from server.agent.state import DataAgentState
 from server.core.log import logger
 from server.prompt.prompt_loader import load_prompt
 
 
-async def filter_metric(state: DataAgentState, runtime: Runtime[DataAgentContext]):
+async def filter_metric(state: DataAgentState, runtime: Runtime[DataAgentContext]) -> dict:
     writer = runtime.stream_writer
-    writer({"type": "progress", "step": "过滤指标", "status": "running"})
+    writer({"type": EventType.PROGRESS, "step": "过滤指标", "status": RunStatus.RUNNING})
 
     query = state["query"]
     metric_infos = state["metric_infos"]
@@ -52,10 +53,10 @@ async def filter_metric(state: DataAgentState, runtime: Runtime[DataAgentContext
             if metric_info["name"] not in result:
                 metric_infos.remove(metric_info)
 
-        writer({"type": "progress", "step": "过滤指标", "status": "success"})
+        writer({"type": EventType.PROGRESS, "step": "过滤指标", "status": RunStatus.SUCCESS})
         logger.info(f"过滤后的指标: {[metric_info['name'] for metric_info in metric_infos]}")
         return {"metric_infos": metric_infos}
     except Exception as e:
-        writer({"type": "progress", "step": "过滤指标", "status": "error"})
+        writer({"type": EventType.PROGRESS, "step": "过滤指标", "status": RunStatus.ERROR})
         logger.error(f"过滤指标失败:{str(e)}")
         raise

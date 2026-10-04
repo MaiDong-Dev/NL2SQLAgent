@@ -22,15 +22,16 @@ from langchain_core.prompts import PromptTemplate
 from langgraph.runtime import Runtime
 
 from server.agent.context import DataAgentContext
+from server.agent.events import EventType, RunStatus
 from server.agent.llm import llm
 from server.agent.state import DataAgentState
 from server.core.log import logger
 from server.prompt.prompt_loader import load_prompt
 
 
-async def generate_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]):
+async def generate_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]) -> dict:
     writer = runtime.stream_writer
-    writer({"type": "progress", "step": "生成SQL", "status": "running"})
+    writer({"type": EventType.PROGRESS, "step": "生成SQL", "status": RunStatus.RUNNING})
 
     query = state["query"]
     table_infos = state["table_infos"]
@@ -55,10 +56,10 @@ async def generate_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]
              "db_info": yaml.dump(db_info, allow_unicode=True, sort_keys=False)
              })
 
-        writer({"type": "progress", "step": "生成SQL", "status": "success"})
+        writer({"type": EventType.PROGRESS, "step": "生成SQL", "status": RunStatus.SUCCESS})
         logger.info(f"生成的SQL: {result}")
         return {"sql": result}
     except Exception as e:
-        writer({"type": "progress", "step": "生成SQL", "status": "error"})
+        writer({"type": EventType.PROGRESS, "step": "生成SQL", "status": RunStatus.ERROR})
         logger.error(f"生成SQL失败: {str(e)}")
         raise

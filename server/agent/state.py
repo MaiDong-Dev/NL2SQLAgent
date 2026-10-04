@@ -42,10 +42,17 @@ class MetricInfoState(TypedDict):
 
 
 class DateInfoState(TypedDict):
-    """日期上下文信息——帮助 LLM 理解"今天"、"本月"等相对时间"""
-    date: str
-    weekday: str
-    quarter: str
+    """时间上下文信息——既帮助 LLM 理解"今天"、"本月"等相对时间，
+    也告诉 LLM 数据实际覆盖的日期范围，避免它用系统当前年份去过滤历史数据。
+
+    为什么要有 data_range：用户问"1月份"而系统当前是 2026 年时，
+    LLM 会用当前年份补全成 `year = 2026`，而数据只到 2025 年底，必然查空。
+    这不是模型幻觉，是它拿到了一份不完整的前提——补上真实范围它才能推断正确。
+    """
+    date: str       # 系统当前日期，格式 YYYY-MM-DD
+    weekday: str    # 系统当前星期，英文全称
+    quarter: str    # 系统当前季度，Q1~Q4
+    data_range: dict  # 数据真实覆盖范围 {"start": "YYYY-MM-DD"|None, "end": "YYYY-MM-DD"|None}
 
 
 class DBInfoState(TypedDict):
@@ -56,7 +63,7 @@ class DBInfoState(TypedDict):
 
 class DataAgentState(TypedDict):
     """DataAgent 主状态——贯穿整个 Agent 工作流的数据总线
-    
+
     各字段在 pipeline 中的流转：
     1. query          → 用户输入，全程不变
     2. keywords       → extract_keywords 节点生成，供召回节点使用
@@ -67,6 +74,8 @@ class DataAgentState(TypedDict):
     7. db_info        → add_extra_context 节点生成，传给 generate_sql
     8. sql            → generate_sql 节点生成，经 validate→correct 循环后传给 execute_sql
     9. error          → validate_sql 节点设置，correct_sql 节点消费后清空
+    10. sql_retry_count → correct_sql 节点累加，用于限制"校验→修正"循环次数，
+                         防止 LLM 反复修不好时无限打转（上限见 app_config.sql.max_correction_attempts）
     """
     query: str  # 用户查询
     keywords: list[str]  # 用户查询的关键字
@@ -84,3 +93,5 @@ class DataAgentState(TypedDict):
     sql: str  # 生成的SQL
 
     error: str  # 验证SQL时的错误信息
+
+    sql_retry_count: int  # SQL 校验→修正 已尝试次数（0 表示尚未修正过）

@@ -159,7 +159,7 @@ async def run_checks(names: list[str], timeout: float) -> list[CheckResult]:
         started = time.perf_counter()
         try:
             result = await asyncio.wait_for(CHECKS[name](), timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             result = CheckResult(name=name, ok=False, detail=f"超时（>{timeout}s），检查 host/端口是否可达")
         except Exception as exc:  # noqa: BLE001 - 健康检查需要吞掉所有异常并汇总
             result = CheckResult(name=name, ok=False, detail=f"{type(exc).__name__}: {exc}")

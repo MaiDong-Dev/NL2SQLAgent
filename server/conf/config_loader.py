@@ -16,7 +16,7 @@
 # =============================================================================
 
 from pathlib import Path
-from typing import Type, TypeVar
+from typing import TypeVar
 
 from omegaconf import OmegaConf
 
@@ -24,7 +24,7 @@ from omegaconf import OmegaConf
 T = TypeVar("T")
 
 
-def load_config[T](config_file: Path, schema_cls: Type[T]) -> T:
+def load_config[T](config_file: Path, schema_cls: type[T]) -> T:
     """加载 YAML 配置文件并反序列化为指定类型的配置对象
 
     参数：

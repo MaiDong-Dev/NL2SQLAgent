@@ -17,6 +17,7 @@
 # =============================================================================
 
 import asyncio
+import logging
 import sys
 from pathlib import Path
 
@@ -24,6 +25,9 @@ from loguru import logger
 
 from server.conf.app_config import app_config
 from server.core.context import request_id_ctx_var
+
+# 项目根目录（本文件位于 <root>/server/core/log.py，向上三级即根）
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 # 全局日志格式模板（控制台与文件共用）
@@ -36,7 +40,7 @@ log_format = (
 )
 
 
-def inject_request_id(record):
+def inject_request_id(record: dict) -> None:
     """日志补丁函数：在每条日志写入前注入当前请求的 request_id
 
     参数：record  loguru 的日志记录对象
@@ -52,6 +56,12 @@ def inject_request_id(record):
 # 移除 loguru 默认的日志处理器，避免重复输出
 logger.remove()
 
+# 压掉 asyncmy 的 WARNING：它在执行 EXPLAIN 时会用标准库 logging 抛一条警告，
+# 消息内容是把 SQL 原样回显（见 DWMySQLRepository.validate_sql），没有诊断价值。
+# 项目没有给标准库 logging 配 handler，Python 的 lastResort 兜底会把它直接写到
+# stderr——每验证一条 SQL 就多刷一行执行计划，跑评测时会把评测过程本身冲散。
+logging.getLogger("asyncmy").setLevel(logging.ERROR)
+
 # 给 logger 打补丁：每次日志写入前自动注入 request_id
 # 注意：重新赋值 logger 是为了让业务模块 import 的 logger 携带 patch 行为
 logger = logger.patch(inject_request_id)
@@ -62,7 +72,13 @@ if app_config.logging.console.enable:
 
 # 根据配置决定是否启用文件输出
 if app_config.logging.file.enable:
+    # 相对路径一律按**项目根**解析，而不是按当前工作目录。
+    # 配置里写的是相对路径 "logs"，若直接 Path(...) 会随 CWD 漂移：
+    # 从 eval/ 下跑评测、或在 IDE 里右键运行某个节点文件时，
+    # 会在那些目录下各建一个 logs/，日志散落各处（仓库里曾出现 4 个这样的目录）。
     path = Path(app_config.logging.file.path)
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
     # 确保日志目录存在
     path.mkdir(parents=True, exist_ok=True)
     logger.add(

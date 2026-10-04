@@ -6,7 +6,6 @@
 #             Agent 节点中，避免在每个节点重复创建连接。
 # =============================================================================
 
-from typing import Optional
 
 from langchain_huggingface import HuggingFaceEndpointEmbeddings
 
@@ -15,11 +14,11 @@ from server.conf.app_config import EmbeddingConfig, app_config
 
 class EmbeddingClientManager:
     """Embedding 服务客户端管理器
-    
+
     职责：
     - 管理与自部署 HuggingFace Embedding 服务的 HTTP 连接
     - 将文本转化为稠密向量（dense vector），供后续向量相似度检索使用
-    
+
     设计说明：
     - 使用 HuggingFaceEndpointEmbeddings 通过 REST API 调用本地/远程 Embedding 模型
     - 模型 URL 格式：http://{host}:{port}，指向 Text Embeddings Inference (TEI) 服务
@@ -27,14 +26,14 @@ class EmbeddingClientManager:
 
     def __init__(self, config: EmbeddingConfig):
         # Embedding 客户端实例，使用 Optional 类型以支持懒初始化
-        self.client: Optional[HuggingFaceEndpointEmbeddings] = None
+        self.client: HuggingFaceEndpointEmbeddings | None = None
         self.config = config
 
     def _get_url(self) -> str:
         """构造 Embedding 服务的 HTTP 端点地址，如 http://localhost:8081"""
         return f"http://{self.config.host}:{self.config.port}"
 
-    def init(self):
+    def init(self) -> None:
         """初始化 Embedding 客户端，建立与向量化服务的连接
 
         说明：HuggingFaceEndpointEmbeddings 的 model 参数实为服务 URL，

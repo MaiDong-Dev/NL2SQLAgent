@@ -9,7 +9,7 @@
 from dataclasses import asdict
 
 from qdrant_client import AsyncQdrantClient
-from qdrant_client.models import VectorParams, Distance, PointStruct
+from qdrant_client.models import Distance, PointStruct, VectorParams
 
 from server.conf.app_config import app_config
 from server.entities.metric_info import MetricInfo
@@ -17,19 +17,19 @@ from server.entities.metric_info import MetricInfo
 
 class MetricQdrantRepository:
     """指标向量索引仓库
-    
+
     职责：
     - 管理名为 'data-agent-metric' 的 Qdrant Collection
     - 将指标的 Embedding 向量写入 Qdrant，为后续语义检索建立索引
     - 提供向量相似度搜索接口，召回与查询关键词最相关的 Top-K 指标
-    
+
     向量化策略（多维度覆盖）：
     每个指标会生成多条向量记录，分别对应：
       1. 指标名（如 "转正率"）           → 精确匹配
       2. 指标描述（如 "实习生转正通过率"） → 语义匹配
       3. 指标别名（如 ["转正比例", "转正通过率"]） → 别名覆盖
     这样设计是为了从多个语义角度覆盖同一指标，提高召回率。
-    
+
     召回策略：
     - 距离度量：余弦相似度（Cosine Distance），适合文本语义相似度比较
     - 分数阈值：score_threshold=0.6，过滤低相关度的噪音结果
@@ -39,12 +39,12 @@ class MetricQdrantRepository:
     # Qdrant 中的 Collection 名称，用于隔离不同业务的数据
     collection_name = 'data-agent-metric'
 
-    def __init__(self, client: AsyncQdrantClient):
+    def __init__(self, client: AsyncQdrantClient) -> None:
         self.client = client
 
-    async def ensure_collection(self):
+    async def ensure_collection(self) -> None:
         """确保 Collection 存在，不存在则自动创建
-        
+
         创建参数说明：
         - vectors_config: 指定向量维度（从配置读取 embedding_size），
           维度必须与 Embedding 模型输出维度一致
@@ -58,7 +58,7 @@ class MetricQdrantRepository:
     async def upsert(self, ids: list[str], embeddings: list[list[float]], payloads: list[MetricInfo],
                      batch_size: int = 20):
         """批量写入/更新向量数据（支持分批上传）
-        
+
         参数：
         - ids: 每条记录的唯一标识，用于后续覆盖更新
         - embeddings: 文本对应的 Embedding 向量列表
@@ -75,12 +75,12 @@ class MetricQdrantRepository:
 
     async def search(self, embedding: list[float], score_threshold: float = 0.6, limit: int = 5) -> list[MetricInfo]:
         """向量相似度搜索——根据查询向量召回最相关的指标
-        
+
         参数：
         - embedding: 用户查询关键词的 Embedding 向量
         - score_threshold: 相似度阈值（0.6），低于此分数的结果视为不相关，直接丢弃
         - limit: 返回的最大结果数（Top-5）
-        
+
         返回：
         - 将 Qdrant 返回的 payload 反序列化为 MetricInfo 实体列表
         """

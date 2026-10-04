@@ -32,11 +32,28 @@ docker compose logs -f mysql      # 首次启动看初始化是否报错
    （挂载到 `/docker-entrypoint-initdb.d`），建库建表并灌入 dw 演示数据。
    数据卷已存在时不会重跑，要重置执行 `docker compose down -v` 后再 up。
 3. **配置对齐**：`conf/app_config.yaml` 中的地址与端口需与上表一致（本机部署即默认值）。
+4. **扩充 dw 数据（推荐）**：`dw.sql` 的种子数据只有 2025 Q1 共 115 单，
+   TopN 排名、各大区对比、同比环比这类问句没有区分度。执行：
+
+   ```bash
+   python -m scripts.generate_dw_data --dry-run   # 先看将要写入的规模
+   python -m scripts.generate_dw_data --reset     # 重建为 50000 单 / 2024-2025 两年
+   ```
+
+   `--orders N` 调订单量，`--customers/--products` 调维度量。固定随机种子，可复现。
+   原 115 单种子数据会原样保留。
+5. **重建元知识库（扩数据后必做）**：新增的省份/品类/品牌等取值需要重新灌进
+   ES 取值索引与 Qdrant 向量，否则这些取值的召回会失效：
+
+   ```bash
+   python -m meta_builder.scripts.build_meta_knowledge -c conf/meta_config.yaml
+   ```
 
 ## 注意
 
 - compose 里 MySQL 密码写死为 `Wuyun.123`，**该密码已出现在仓库历史提交中（视为泄露）**，
   仅作本地演示；请按自己环境修改 `conf/app_config.yaml`，不要带默认密码上生产。
-- dw 演示数据只有 **2025 年 Q1 共 115 笔订单**，跨年 / 其他季度的问句会返回空结果，
-  这不是系统 bug。
+- dw 演示数据默认只有 **2025 年 Q1 共 115 笔订单**，跨年 / 其他季度的问句会返回空结果，
+  这不是系统 bug——跑上面的第 4 步扩充数据即可解决。
+- **改数据后要重跑评测**：09 报告的准确率是在 115 单数据上测的，数据规模变了就不再有可比性。
 - 服务进程本身不在容器内，仍由 `uv run python main.py` 启动（见根目录 README）。

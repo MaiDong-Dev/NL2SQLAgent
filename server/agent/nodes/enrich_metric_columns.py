@@ -19,13 +19,14 @@
 from langgraph.runtime import Runtime
 
 from server.agent.context import DataAgentContext
+from server.agent.events import EventType, RunStatus
 from server.agent.state import ColumnInfoState, DataAgentState, TableInfoState
 from server.core.log import logger
 
 
-async def enrich_metric_columns(state: DataAgentState, runtime: Runtime[DataAgentContext]):
+async def enrich_metric_columns(state: DataAgentState, runtime: Runtime[DataAgentContext]) -> dict:
     writer = runtime.stream_writer
-    writer({"type": "progress", "step": "补全指标字段", "status": "running"})
+    writer({"type": EventType.PROGRESS, "step": "补全指标字段", "status": RunStatus.RUNNING})
 
     table_infos = state["table_infos"]
     metric_infos = state["metric_infos"]
@@ -78,11 +79,11 @@ async def enrich_metric_columns(state: DataAgentState, runtime: Runtime[DataAgen
                 kept_column_names.add(column_name)
                 enriched.append(column.id)
 
-        writer({"type": "progress", "step": "补全指标字段", "status": "success"})
+        writer({"type": EventType.PROGRESS, "step": "补全指标字段", "status": RunStatus.SUCCESS})
         if enriched:
             logger.info(f"指标关联字段补全: {enriched}")
         return {"table_infos": table_infos}
     except Exception as e:
-        writer({"type": "progress", "step": "补全指标字段", "status": "error"})
+        writer({"type": EventType.PROGRESS, "step": "补全指标字段", "status": RunStatus.ERROR})
         logger.error(f"补全指标关联字段失败: {str(e)}")
         raise

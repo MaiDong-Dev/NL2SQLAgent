@@ -23,7 +23,7 @@ from server.repositories.qdrant.metric_qdrant_repository import MetricQdrantRepo
 
 class DataAgentContext(TypedDict):
     """Agent 基础设施上下文——包含所有外部服务依赖
-    
+
     各字段用途：
     - embedding_client:         将文本转为向量，供向量召回节点使用
     - column_qdrant_repository: 字段向量库，通过语义相似度召回相关字段

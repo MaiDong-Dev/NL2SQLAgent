@@ -12,18 +12,26 @@
 # =============================================================================
 
 import asyncio
+import logging
 
 import jieba.analyse
 from langgraph.runtime import Runtime
 
 from server.agent.context import DataAgentContext
+from server.agent.events import EventType, RunStatus
 from server.agent.state import DataAgentState
 from server.core.log import logger
 
+# jieba 在导入时自建了 logger 并置为 DEBUG，会往 stderr 打 4 行载入词典的过程
+# （Building prefix dict... / Loading model cost ...），与业务日志混在一起。
+# 必须在这里调它自己的 API 才能覆盖——在 log.py 里调 logging.getLogger("jieba")
+# 会先被 jieba 的模块级 setLevel(DEBUG) 覆盖掉。
+jieba.setLogLevel(logging.WARNING)
 
-async def extract_keywords(state: DataAgentState, runtime: Runtime[DataAgentContext]):
+
+async def extract_keywords(state: DataAgentState, runtime: Runtime[DataAgentContext]) -> dict:
     writer = runtime.stream_writer
-    writer({"type": "progress", "step": "抽取关键字", "status": "running"})
+    writer({"type": EventType.PROGRESS, "step": "抽取关键字", "status": RunStatus.RUNNING})
 
     query = state["query"]
 
@@ -44,16 +52,16 @@ async def extract_keywords(state: DataAgentState, runtime: Runtime[DataAgentCont
         "i",  # 成语
         "l",  # 常用固定短语
     )
-
+    # 关键词抽取
     # 使用 jieba 的 TF-IDF 算法提取关键词
     # extract_tags 内部会计算 TF-IDF，自动过滤停用词和低权重词
     keywords = jieba.analyse.extract_tags(query, allowPOS=allow_pos)
 
-    # 去重 + 保留原始查询作为兜底关键词
+    # 去重 + 保留原始查询作为兜底关键词，确保不丢失关键信息（query）
     # 目的：即使 jieba 分词结果不理想，原始查询也能作为检索关键词
     keywords = list(set(keywords + [query]))
 
-    writer({"type": "progress", "step": "抽取关键字", "status": "success"})
+    writer({"type": EventType.PROGRESS, "step": "抽取关键字", "status": RunStatus.SUCCESS})
     logger.info(f"抽取关键字: {keywords}")
     return {"keywords": keywords}
 

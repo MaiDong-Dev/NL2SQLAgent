@@ -23,6 +23,7 @@ from langchain_core.prompts import PromptTemplate
 from langgraph.runtime import Runtime
 
 from server.agent.context import DataAgentContext
+from server.agent.events import EventType, RunStatus
 from server.agent.llm import llm
 from server.agent.state import DataAgentState
 from server.conf.app_config import app_config
@@ -34,9 +35,9 @@ from server.prompt.prompt_loader import load_prompt
 KEY_ROLES = {"primary_key", "foreign_key"}
 
 
-async def recall_column(state: DataAgentState, runtime: Runtime[DataAgentContext]):
+async def recall_column(state: DataAgentState, runtime: Runtime[DataAgentContext]) -> dict:
     writer = runtime.stream_writer
-    writer({"type": "progress", "step": "召回字段", "status": "running"})
+    writer({"type": EventType.PROGRESS, "step": "召回字段", "status": RunStatus.RUNNING})
 
     query = state["query"]
     keywords = state["keywords"]
@@ -113,10 +114,10 @@ async def recall_column(state: DataAgentState, runtime: Runtime[DataAgentContext
 
         retrieved_columns = [column for column, _ in candidates.values()]
 
-        writer({"type": "progress", "step": "召回字段", "status": "success"})
+        writer({"type": EventType.PROGRESS, "step": "召回字段", "status": RunStatus.SUCCESS})
         logger.info(f"召回字段信息：{[column.id for column in retrieved_columns]}（候选 {len(candidates)} 个字段）")
         return {"retrieved_columns": retrieved_columns}
     except Exception as e:
-        writer({"type": "progress", "step": "召回字段", "status": "error"})
+        writer({"type": EventType.PROGRESS, "step": "召回字段", "status": RunStatus.ERROR})
         logger.error(f"召回字段信息失败: {str(e)}")
         raise
