@@ -19,13 +19,14 @@ from datetime import datetime
 from langgraph.runtime import Runtime
 
 from server.agent.context import DataAgentContext
+from server.agent.events import EventType, RunStatus
 from server.agent.state import DataAgentState, DateInfoState
 from server.core.log import logger
 
 
-async def add_extra_context(state: DataAgentState, runtime: Runtime[DataAgentContext]):
+async def add_extra_context(state: DataAgentState, runtime: Runtime[DataAgentContext]) -> dict:
     writer = runtime.stream_writer
-    writer({"type": "progress", "step": "添加额外上下文信息", "status": "running"})
+    writer({"type": EventType.PROGRESS, "step": "添加额外上下文信息", "status": RunStatus.RUNNING})
 
     dw_mysql_repository = runtime.context["dw_mysql_repository"]
 
@@ -54,13 +55,13 @@ async def add_extra_context(state: DataAgentState, runtime: Runtime[DataAgentCon
         # 数据仓库环境信息（数据库类型 + 版本号）
         db_info = await dw_mysql_repository.get_db_info()
 
-        writer({"type": "progress", "step": "添加额外上下文信息", "status": "success"})
+        writer({"type": EventType.PROGRESS, "step": "添加额外上下文信息", "status": RunStatus.SUCCESS})
         logger.info(f"额外上下文信息：数据库信息-{db_info} 日期信息-{date_info}")
         return {
             "date_info": date_info,
             "db_info": db_info,
         }
     except Exception as e:
-        writer({"type": "progress", "step": "添加额外上下文信息", "status": "error"})
+        writer({"type": EventType.PROGRESS, "step": "添加额外上下文信息", "status": RunStatus.ERROR})
         logger.error(f"添加上下文失败:{str(e)}")
         raise

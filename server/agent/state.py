@@ -63,7 +63,7 @@ class DBInfoState(TypedDict):
 
 class DataAgentState(TypedDict):
     """DataAgent 主状态——贯穿整个 Agent 工作流的数据总线
-    
+
     各字段在 pipeline 中的流转：
     1. query          → 用户输入，全程不变
     2. keywords       → extract_keywords 节点生成，供召回节点使用
@@ -74,6 +74,8 @@ class DataAgentState(TypedDict):
     7. db_info        → add_extra_context 节点生成，传给 generate_sql
     8. sql            → generate_sql 节点生成，经 validate→correct 循环后传给 execute_sql
     9. error          → validate_sql 节点设置，correct_sql 节点消费后清空
+    10. sql_retry_count → correct_sql 节点累加，用于限制"校验→修正"循环次数，
+                         防止 LLM 反复修不好时无限打转（上限见 app_config.sql.max_correction_attempts）
     """
     query: str  # 用户查询
     keywords: list[str]  # 用户查询的关键字
@@ -91,3 +93,5 @@ class DataAgentState(TypedDict):
     sql: str  # 生成的SQL
 
     error: str  # 验证SQL时的错误信息
+
+    sql_retry_count: int  # SQL 校验→修正 已尝试次数（0 表示尚未修正过）

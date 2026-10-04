@@ -22,18 +22,19 @@
 #   - embedding 客户端无 close 方法（HTTP 无状态，无需显式释放）
 # =============================================================================
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
 from server.clients.embedding_client_manager import embedding_client_manager
 from server.clients.es_client_manager import es_client_manager
-from server.clients.mysql_client_manager import meta_mysql_client_manager, dw_mysql_client_manager
+from server.clients.mysql_client_manager import dw_mysql_client_manager, meta_mysql_client_manager
 from server.clients.qdrant_client_manager import qdrant_client_manager
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """FastAPI 应用生命周期上下文管理器
 
     参数：app  FastAPI  应用实例

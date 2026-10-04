@@ -22,6 +22,7 @@ from langchain_core.prompts import PromptTemplate
 from langgraph.runtime import Runtime
 
 from server.agent.context import DataAgentContext
+from server.agent.events import EventType, RunStatus
 from server.agent.llm import llm
 from server.agent.state import DataAgentState
 from server.agent.time_utils import has_time_semantic, is_time_dimension_table
@@ -29,9 +30,9 @@ from server.core.log import logger
 from server.prompt.prompt_loader import load_prompt
 
 
-async def filter_table(state: DataAgentState, runtime: Runtime[DataAgentContext]):
+async def filter_table(state: DataAgentState, runtime: Runtime[DataAgentContext]) -> dict:
     writer = runtime.stream_writer
-    writer({"type": "progress", "step": "过滤表格", "status": "running"})
+    writer({"type": EventType.PROGRESS, "step": "过滤表格", "status": RunStatus.RUNNING})
 
     query = state["query"]
     table_infos = state["table_infos"]
@@ -100,10 +101,10 @@ async def filter_table(state: DataAgentState, runtime: Runtime[DataAgentContext]
                     if column["name"] not in kept_column_names:
                         target["columns"].append(column)
 
-        writer({"type": "progress", "step": "过滤表格", "status": "success"})
+        writer({"type": EventType.PROGRESS, "step": "过滤表格", "status": RunStatus.SUCCESS})
         logger.info(f"过滤后的表信息: {[table_info['name'] for table_info in table_infos]}")
         return {"table_infos": table_infos}
     except Exception as e:
-        writer({"type": "progress", "step": "过滤表格", "status": "error"})
+        writer({"type": EventType.PROGRESS, "step": "过滤表格", "status": RunStatus.ERROR})
         logger.error(f"过滤表失败:{str(e)}")
         raise

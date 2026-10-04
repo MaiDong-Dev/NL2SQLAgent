@@ -35,3 +35,38 @@ addopts = "-q"
 markers = [
     "integration: 需要真实中间件（MySQL / ES / Qdrant / Embedding）的集成测试",
 ]
+
+# =============================================================================
+# ruff：lint + format
+#   uv run ruff check --fix     # 自动修可修的（未使用导入、导入顺序等）
+#   uv run ruff format          # 统一排版
+# =============================================================================
+[tool.ruff]
+# 行宽取 120 而非默认 88：本仓注释以中文为主，ruff 按**字符数**计长，
+# 中文一句 40 字就接近 88 了，用默认值会产生大量无意义的 E501。
+line-length = 120
+target-version = "py312"
+exclude = [
+    ".venv",
+    "frontend",           # 前端由 Vite/ESLint 负责
+    ".codebuddy",
+    "eval/archive",       # 归档的历史评测产物
+    "docs/tutorial/单元代码学习示例",  # 学习示例，非项目代码
+]
+
+[tool.ruff.lint]
+# E/W pycodestyle · F pyflakes · I isort · UP pyupgrade
+# 暂不启用 B(bugbear) / SIM(simplify)：会引入大量非规范性问题，
+# 待本仓风格收敛后再单独评估（见 docs/开发约定.md）
+select = ["E", "W", "F", "I", "UP"]
+# E501 交给 ruff format；中文注释按字符计长必然误报
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+# 内部包单独分组，与第三方隔开，便于扫读依赖来源
+known-first-party = ["server", "meta_builder", "eval", "scripts"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.10",
+]

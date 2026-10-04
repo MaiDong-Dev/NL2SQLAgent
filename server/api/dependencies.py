@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from server.clients.embedding_client_manager import embedding_client_manager
 from server.clients.es_client_manager import es_client_manager
-from server.clients.mysql_client_manager import meta_mysql_client_manager, dw_mysql_client_manager
+from server.clients.mysql_client_manager import dw_mysql_client_manager, meta_mysql_client_manager
 from server.clients.qdrant_client_manager import qdrant_client_manager
 from server.repositories.es.value_es_repository import ValueESRepository
 from server.repositories.mysql.dw.dw_mysql_repository import DWMySQLRepository
@@ -36,7 +36,7 @@ from server.repositories.qdrant.metric_qdrant_repository import MetricQdrantRepo
 from server.services.query_service import QueryService
 
 
-async def get_meta_session():
+async def get_meta_session() -> AsyncSession:
     """依赖注入：提供元数据库（Meta DB）的异步会话
 
     使用 async with 确保请求结束后会话自动关闭，连接归还连接池
@@ -45,7 +45,7 @@ async def get_meta_session():
         yield session
 
 
-async def get_dw_session():
+async def get_dw_session() -> AsyncSession:
     """依赖注入：提供数据仓库（DW）的异步会话
 
     使用 async with 确保请求结束后会话自动关闭，连接归还连接池

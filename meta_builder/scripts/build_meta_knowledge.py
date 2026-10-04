@@ -18,19 +18,19 @@ import asyncio
 from argparse import ArgumentParser
 from pathlib import Path
 
+from meta_builder.services.meta_knowledge_service import MetaKnowledgeService
 from server.clients.embedding_client_manager import embedding_client_manager
 from server.clients.es_client_manager import es_client_manager
 from server.clients.mysql_client_manager import (
-    meta_mysql_client_manager,
     dw_mysql_client_manager,
+    meta_mysql_client_manager,
 )
 from server.clients.qdrant_client_manager import qdrant_client_manager
-from server.repositories.qdrant.column_qdrant_repository import ColumnQdrantRepository
+from server.repositories.es.value_es_repository import ValueESRepository
 from server.repositories.mysql.dw.dw_mysql_repository import DWMySQLRepository
 from server.repositories.mysql.meta.meta_mysql_repository import MetaMySQLRepository
-from server.repositories.es.value_es_repository import ValueESRepository
+from server.repositories.qdrant.column_qdrant_repository import ColumnQdrantRepository
 from server.repositories.qdrant.metric_qdrant_repository import MetricQdrantRepository
-from meta_builder.services.meta_knowledge_service import MetaKnowledgeService
 
 
 async def build(config_path: Path):

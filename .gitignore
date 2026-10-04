@@ -23,6 +23,11 @@ conf/app_config.yaml
 logs/
 *.log
 
+# 测试 / 类型检查缓存
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
 # IDE / 编辑器
 .idea/
 .vscode/

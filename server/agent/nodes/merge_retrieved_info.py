@@ -27,16 +27,17 @@
 from langgraph.runtime import Runtime
 
 from server.agent.context import DataAgentContext
-from server.agent.state import DataAgentState, TableInfoState, MetricInfoState, ColumnInfoState
+from server.agent.events import EventType, RunStatus
+from server.agent.state import ColumnInfoState, DataAgentState, MetricInfoState, TableInfoState
 from server.agent.time_utils import has_time_semantic
 from server.core.log import logger
 from server.entities.column_info import ColumnInfo
 from server.entities.table_info import TableInfo
 
 
-async def merge_retrieved_info(state: DataAgentState, runtime: Runtime[DataAgentContext]):
+async def merge_retrieved_info(state: DataAgentState, runtime: Runtime[DataAgentContext]) -> dict:
     writer = runtime.stream_writer
-    writer({"type": "progress", "step": "合并召回信息", "status": "running"})
+    writer({"type": EventType.PROGRESS, "step": "合并召回信息", "status": RunStatus.RUNNING})
 
     # 已召回信息
     retrieved_columns = state["retrieved_columns"]
@@ -144,12 +145,12 @@ async def merge_retrieved_info(state: DataAgentState, runtime: Runtime[DataAgent
                             relevant_columns=metric_info.relevant_columns, alias=metric_info.alias)
             for metric_info in retrieved_metrics]
 
-        writer({"type": "progress", "step": "合并召回信息", "status": "success"})
+        writer({"type": EventType.PROGRESS, "step": "合并召回信息", "status": RunStatus.SUCCESS})
         logger.info(
             f"合并召回信息: 表信息-{[table_info['name'] for table_info in table_infos]},指标信息-{[metric_info['name'] for metric_info in metric_infos]}")
 
         return {"table_infos": table_infos, "metric_infos": metric_infos}
     except Exception as e:
-        writer({"type": "progress", "step": "合并召回信息", "status": "error"})
+        writer({"type": EventType.PROGRESS, "step": "合并召回信息", "status": RunStatus.ERROR})
         logger.error(f"合并召回信息失败: {str(e)}")
         raise

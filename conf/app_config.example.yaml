@@ -70,6 +70,17 @@ llm:
   api_key: ${oc.env:DEEPSEEK_API_KEY,''}
   base_url: https://api.deepseek.com
 
+# SQL 执行护栏：SQL 由 LLM 生成，不可信，这里集中配置兜底参数。
+# 三个值都有默认值，整段省略也能正常启动（见 server/conf/app_config.py 的 SQLConfig）。
+sql:
+  # 单次查询返回给前端的最大行数。5 万单的库上一句没聚合好的 SQL 能返回数万行，
+  # 会撑爆内存、拖死前端渲染；超出部分截断并回传 truncated 标记。
+  max_result_rows: 1000
+  # 单条 SQL 执行超时（秒），超时按失败处理并回传提示，避免拖垮连接池
+  execution_timeout_seconds: 30
+  # SQL 校验失败后最多让 LLM 修正几次；超过则放弃执行并回传错误，防止无限循环
+  max_correction_attempts: 2
+
 # 评测（eval/ 下脚本）使用的外部裁判密钥；不跑评测可不配
 eval:
   judge:

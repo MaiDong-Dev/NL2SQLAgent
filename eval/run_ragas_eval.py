@@ -39,8 +39,6 @@ import argparse
 import asyncio
 import csv
 import json
-import logging
-import os
 import sys
 import time
 from collections import Counter
@@ -50,18 +48,23 @@ from pathlib import Path
 
 import httpx
 from openai import AsyncOpenAI
+from ragas.dataset_schema import SingleTurnSample
+from ragas.llms import llm_factory
 from sqlalchemy import text
 
 from eval.equivalence import deterministic_equivalence
 from eval.jev_judge import (
     DEFAULT_THRESHOLD as JEV_DEFAULT_THRESHOLD,
+)
+from eval.jev_judge import (
     REQUEST_TIMEOUT as JEV_REQUEST_TIMEOUT,
+)
+from eval.jev_judge import (
     judge_equivalence,
     resolve_api_key,
 )
+from server.agent.events import ExecAccuracy
 
-from ragas.dataset_schema import SingleTurnSample
-from ragas.llms import llm_factory
 try:  # 新版 collections 尚未提供 ID-based 指标，直接按模块路径导入可避开弃用警告
     from ragas.metrics._context_precision import IDBasedContextPrecision
     from ragas.metrics._context_recall import IDBasedContextRecall
@@ -163,7 +166,7 @@ def _row_values(row: dict):
     return tuple(sorted((str(k), _canon(v)) for k, v in row.items()))
 
 
-@discrete_metric(name="execution_accuracy", allowed_values=["correct", "incorrect", "empty_both"])
+@discrete_metric(name="execution_accuracy", allowed_values=[m.value for m in ExecAccuracy])
 def execution_accuracy(predicted_rows, reference_rows, predicted_error=None):
     """比较「生成 SQL」与「标准 SQL」的实际执行结果
 
@@ -175,14 +178,14 @@ def execution_accuracy(predicted_rows, reference_rows, predicted_error=None):
       - 列名不同但数据一致         → correct（列名别名不应判错）
     """
     if predicted_error is not None:
-        return MetricResult(value="incorrect", reason=f"生成 SQL 执行失败: {predicted_error}")
+        return MetricResult(value=ExecAccuracy.INCORRECT, reason=f"生成 SQL 执行失败: {predicted_error}")
 
     if predicted_rows is None or reference_rows is None:
-        return MetricResult(value="incorrect", reason="执行结果为空，无法比较")
+        return MetricResult(value=ExecAccuracy.INCORRECT, reason="执行结果为空，无法比较")
 
     if not predicted_rows and not reference_rows:
         return MetricResult(
-            value="empty_both",
+            value=ExecAccuracy.EMPTY_BOTH,
             reason="两边均返回 0 行，无法证明等价（不计通过，需人工复核）",
         )
 
@@ -190,17 +193,17 @@ def execution_accuracy(predicted_rows, reference_rows, predicted_error=None):
     ref = sorted(_row_values(row) for row in reference_rows)
 
     if pred == ref:
-        return MetricResult(value="correct", reason=f"结果一致（{len(ref)} 行）")
+        return MetricResult(value=ExecAccuracy.CORRECT, reason=f"结果一致（{len(ref)} 行）")
 
     # 退一步：只比较值，不比较列别名，也不比较列的顺序
     # （值统一转字符串再排序，避免 str/float 混合类型无法比较）
     pred_values = sorted(tuple(sorted(str(v) for _, v in row)) for row in pred)
     ref_values = sorted(tuple(sorted(str(v) for _, v in row)) for row in ref)
     if pred_values == ref_values:
-        return MetricResult(value="correct", reason=f"数据一致但列名不同（{len(ref)} 行）")
+        return MetricResult(value=ExecAccuracy.CORRECT, reason=f"数据一致但列名不同（{len(ref)} 行）")
 
     return MetricResult(
-        value="incorrect",
+        value=ExecAccuracy.INCORRECT,
         reason=f"结果不一致：预期 {len(ref)} 行 / 实际 {len(pred)} 行；预期首行={ref[:1]} 实际首行={pred[:1]}",
     )
 
@@ -503,7 +506,7 @@ def print_case(index: int, total: int, row: dict, elapsed_total: float,
             f"  (链路 {_secs(row['agent_seconds'])} / 裁判 {_secs(row['judge_seconds'])})")
 
     # 失败用例补上裁判/执行给出的原因，最值得人工看
-    if verdict != "correct":
+    if verdict != ExecAccuracy.CORRECT:
         print(f"        原因   {_one_line(row['execution_reason'], 150)}")
         if row["jev_reason"]:
             print(f"        裁判   {_one_line(row['jev_reason'], 150)}")
@@ -657,8 +660,8 @@ async def main():
     # =========================================================================
     total = len(rows)
     run_elapsed = time.perf_counter() - run_started
-    acc = sum(1 for r in rows if r["execution_accuracy"] == "correct")
-    empty = sum(1 for r in rows if r["execution_accuracy"] == "empty_both")
+    acc = sum(1 for r in rows if r["execution_accuracy"] == ExecAccuracy.CORRECT)
+    empty = sum(1 for r in rows if r["execution_accuracy"] == ExecAccuracy.EMPTY_BOTH)
     broken = sum(1 for r in rows if r["execution_accuracy"] == "error")
 
     print(LINE)
@@ -704,7 +707,7 @@ async def main():
                           if r["execution_accuracy"] != "correct"
                           and r["jev_equivalence"] == 1.0]
         false_negative = [r for r in rows
-                          if r["execution_accuracy"] == "correct"
+                          if r["execution_accuracy"] == ExecAccuracy.CORRECT
                           and r["jev_equivalence"] == 0.0]
         if false_positive:
             print(f"  ⚠ 裁判假阳性 {len(false_positive)} 条（判等价但执行结果不对）:")

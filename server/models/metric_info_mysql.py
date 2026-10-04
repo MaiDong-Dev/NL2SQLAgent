@@ -9,8 +9,8 @@
 # =============================================================================
 
 from sqlalchemy import String, Text
-from sqlalchemy.types import JSON
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.types import JSON
 
 from server.models.base import Base
 

@@ -18,6 +18,7 @@ import jieba.analyse
 from langgraph.runtime import Runtime
 
 from server.agent.context import DataAgentContext
+from server.agent.events import EventType, RunStatus
 from server.agent.state import DataAgentState
 from server.core.log import logger
 
@@ -28,9 +29,9 @@ from server.core.log import logger
 jieba.setLogLevel(logging.WARNING)
 
 
-async def extract_keywords(state: DataAgentState, runtime: Runtime[DataAgentContext]):
+async def extract_keywords(state: DataAgentState, runtime: Runtime[DataAgentContext]) -> dict:
     writer = runtime.stream_writer
-    writer({"type": "progress", "step": "抽取关键字", "status": "running"})
+    writer({"type": EventType.PROGRESS, "step": "抽取关键字", "status": RunStatus.RUNNING})
 
     query = state["query"]
 
@@ -60,7 +61,7 @@ async def extract_keywords(state: DataAgentState, runtime: Runtime[DataAgentCont
     # 目的：即使 jieba 分词结果不理想，原始查询也能作为检索关键词
     keywords = list(set(keywords + [query]))
 
-    writer({"type": "progress", "step": "抽取关键字", "status": "success"})
+    writer({"type": EventType.PROGRESS, "step": "抽取关键字", "status": RunStatus.SUCCESS})
     logger.info(f"抽取关键字: {keywords}")
     return {"keywords": keywords}
 

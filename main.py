@@ -7,7 +7,7 @@ from server.core.context import request_id_ctx_var
 from server.core.lifespan import lifespan
 
 # 创建FastAPI应用，并注册生命周期函数
-app = FastAPI(lifespan=lifespan) 
+app = FastAPI(lifespan=lifespan)
 
 # 注册路由
 app.include_router(query_router)

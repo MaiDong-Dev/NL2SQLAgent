@@ -184,6 +184,14 @@ function handleEvent(data, stepMsg) {
       columns: Object.keys(data.data[0] || {}),
       rows: data.data,
     });
+    // 后端对结果集做了行数上限截断（app_config.sql.max_result_rows），提示用户看到的是部分数据
+    if (data.truncated) {
+      messages.value.push({
+        role: "assistant",
+        type: "text",
+        content: `结果行数超过上限，仅显示前 ${data.data.length} 行。可补充过滤条件或缩小时间范围后再查。`,
+      });
+    }
     return;
   }
 

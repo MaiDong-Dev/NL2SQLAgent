@@ -22,6 +22,7 @@ from langchain_core.prompts import PromptTemplate
 from langgraph.runtime import Runtime
 
 from server.agent.context import DataAgentContext
+from server.agent.events import EventType, RunStatus
 from server.agent.llm import llm
 from server.agent.state import DataAgentState
 from server.core.log import logger
@@ -29,9 +30,9 @@ from server.entities.metric_info import MetricInfo
 from server.prompt.prompt_loader import load_prompt
 
 
-async def recall_metric(state: DataAgentState, runtime: Runtime[DataAgentContext]):
+async def recall_metric(state: DataAgentState, runtime: Runtime[DataAgentContext]) -> dict:
     writer = runtime.stream_writer
-    writer({"type": "progress", "step": "召回指标", "status": "running"})
+    writer({"type": EventType.PROGRESS, "step": "召回指标", "status": RunStatus.RUNNING})
 
     query = state["query"]
     keywords = state["keywords"]
@@ -77,10 +78,10 @@ async def recall_metric(state: DataAgentState, runtime: Runtime[DataAgentContext
 
         retrieved_metrics = list(retrieved_metrics_map.values())
 
-        writer({"type": "progress", "step": "召回指标", "status": "success"})
+        writer({"type": EventType.PROGRESS, "step": "召回指标", "status": RunStatus.SUCCESS})
         logger.info(f"召回指标信息：{list(retrieved_metrics_map.keys())}")
         return {"retrieved_metrics": retrieved_metrics}
     except Exception as e:
-        writer({"type": "progress", "step": "召回指标", "status": "error"})
+        writer({"type": EventType.PROGRESS, "step": "召回指标", "status": RunStatus.ERROR})
         logger.error(f"召回指标信息失败: {str(e)}")
         raise

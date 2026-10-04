@@ -26,6 +26,9 @@ from loguru import logger
 from server.conf.app_config import app_config
 from server.core.context import request_id_ctx_var
 
+# 项目根目录（本文件位于 <root>/server/core/log.py，向上三级即根）
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 
 # 全局日志格式模板（控制台与文件共用）
 log_format = (
@@ -37,7 +40,7 @@ log_format = (
 )
 
 
-def inject_request_id(record):
+def inject_request_id(record: dict) -> None:
     """日志补丁函数：在每条日志写入前注入当前请求的 request_id
 
     参数：record  loguru 的日志记录对象
@@ -69,7 +72,13 @@ if app_config.logging.console.enable:
 
 # 根据配置决定是否启用文件输出
 if app_config.logging.file.enable:
+    # 相对路径一律按**项目根**解析，而不是按当前工作目录。
+    # 配置里写的是相对路径 "logs"，若直接 Path(...) 会随 CWD 漂移：
+    # 从 eval/ 下跑评测、或在 IDE 里右键运行某个节点文件时，
+    # 会在那些目录下各建一个 logs/，日志散落各处（仓库里曾出现 4 个这样的目录）。
     path = Path(app_config.logging.file.path)
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
     # 确保日志目录存在
     path.mkdir(parents=True, exist_ok=True)
     logger.add(

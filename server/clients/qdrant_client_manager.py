@@ -14,7 +14,6 @@
 
 import asyncio
 import random
-from typing import Optional
 
 from qdrant_client import AsyncQdrantClient, models
 
@@ -36,17 +35,17 @@ class QdrantClientManager:
         参数：qdrant_config  QdrantConfig  Qdrant 连接配置（host/port）
         """
         self.qdrant_config = qdrant_config
-        self.client: Optional[AsyncQdrantClient] = None   # 懒加载，init() 后才赋值
+        self.client: AsyncQdrantClient | None = None   # 懒加载，init() 后才赋值
 
     def _get_url(self) -> str:
         """构造 Qdrant 服务的 HTTP 端点地址，如 http://localhost:6333"""
         return f"http://{self.qdrant_config.host}:{self.qdrant_config.port}"
 
-    def init(self):
+    def init(self) -> None:
         """初始化 Qdrant 异步客户端，建立连接（在应用启动时调用）"""
         self.client = AsyncQdrantClient(url=self._get_url())
 
-    async def close(self):
+    async def close(self) -> None:
         """关闭 Qdrant 连接，释放底层资源（在应用关闭时调用）"""
         await self.client.close()
 

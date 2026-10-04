@@ -40,7 +40,6 @@ from eval.jev_judge import (
     ATOMIC_KEYS,
     DEFAULT_THRESHOLD,
     REQUEST_TIMEOUT,
-    build_state,
     judge_equivalence,
 )
 
@@ -93,9 +92,13 @@ async def judge_one(client: httpx.AsyncClient, row, ddl: str | None, sem: asynci
 
 def judge_dry_run(row, threshold: float) -> dict:
     """不调 API 的桩：用字符串相等做确定性伪概率，仅验证流程与统计链路"""
+
+    def normalize(sql: str) -> str:
+        """去掉所有空白并转小写，用于粗略判断两条 SQL 是否完全一致"""
+        return "".join(sql.split()).lower()
+
     pred, ref = str(row["predicted_sql"]), str(row["reference_sql"])
-    norm = lambda s: "".join(s.split()).lower()
-    same = 0.9 if norm(pred) == norm(ref) else 0.2
+    same = 0.9 if normalize(pred) == normalize(ref) else 0.2
     probs = {key: same for key in ["same_result", *ATOMIC_KEYS]}
     composite = all(v >= threshold for v in (probs[k] for k in ATOMIC_KEYS))
     return {

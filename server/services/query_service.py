@@ -14,10 +14,12 @@
 # =============================================================================
 
 import json
+from collections.abc import AsyncIterator
 
 from langchain_huggingface import HuggingFaceEndpointEmbeddings
 
 from server.agent.context import DataAgentContext
+from server.agent.events import EventType
 from server.agent.graph import graph
 from server.agent.state import DataAgentState
 from server.repositories.es.value_es_repository import ValueESRepository
@@ -29,7 +31,7 @@ from server.repositories.qdrant.metric_qdrant_repository import MetricQdrantRepo
 
 class QueryService:
     """NL2SQL 查询服务
-    
+
     职责：
     - 接收用户自然语言查询
     - 组装 Agent 所需的上下文和状态
@@ -50,15 +52,15 @@ class QueryService:
         self.meta_mysql_repository = meta_mysql_repository
         self.dw_mysql_repository = dw_mysql_repository
 
-    async def query(self, query: str):
+    async def query(self, query: str) -> AsyncIterator[str]:
         """执行 NL2SQL 查询
-        
+
         参数：
         - query: 用户自然语言查询，如 "统计去年各地区的销售总额"
-        
+
         返回：
         - SSE 流式生成器，每个 chunk 格式为 "data: {json}\n\n"
-        
+
         处理流程：
         1. 组装 DataAgentContext：注入所有基础设施依赖
         2. 创建 DataAgentState：初始化用户查询
@@ -82,4 +84,4 @@ class QueryService:
             async for chunk in graph.astream(input=state, context=context, stream_mode="custom"):
                 yield f"data: {json.dumps(chunk, ensure_ascii=False, default=str)}\n\n" # SSE格式发送数据
         except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False, default=str)}\n\n"
+            yield f"data: {json.dumps({'type': EventType.ERROR, 'message': str(e)}, ensure_ascii=False, default=str)}\n\n"

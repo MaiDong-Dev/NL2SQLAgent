@@ -22,15 +22,16 @@ from langchain_core.prompts import PromptTemplate
 from langgraph.runtime import Runtime
 
 from server.agent.context import DataAgentContext
+from server.agent.events import EventType, RunStatus
 from server.agent.llm import llm
 from server.agent.state import DataAgentState
 from server.core.log import logger
 from server.prompt.prompt_loader import load_prompt
 
 
-async def correct_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]):
+async def correct_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]) -> dict:
     writer = runtime.stream_writer
-    writer({"type": "progress", "step": "校正SQL", "status": "running"})
+    writer({"type": EventType.PROGRESS, "step": "校正SQL", "status": RunStatus.RUNNING})
 
     sql = state["sql"]
     error = state["error"]
@@ -64,10 +65,11 @@ async def correct_sql(state: DataAgentState, runtime: Runtime[DataAgentContext])
              "sql": sql,
              "error": error
              })
-        writer({"type": "progress", "step": "校正SQL", "status": "success"})
+        writer({"type": EventType.PROGRESS, "step": "校正SQL", "status": RunStatus.SUCCESS})
         logger.info(f"校正后的SQL: {result}")
-        return {"sql": result}
+        # 累加修正次数：图据此判断是否还能再修一轮，避免无限循环
+        return {"sql": result, "sql_retry_count": state.get("sql_retry_count", 0) + 1}
     except Exception as e:
-        writer({"type": "progress", "step": "校正SQL", "status": "error"})
+        writer({"type": EventType.PROGRESS, "step": "校正SQL", "status": RunStatus.ERROR})
         logger.error(f"校正SQL失败:{str(e)}")
         raise

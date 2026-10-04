@@ -27,8 +27,6 @@ from pathlib import Path
 
 from omegaconf import OmegaConf
 
-from server.conf.config_loader import load_config
-
 # 支持从项目根目录的 .env 读取敏感配置（如 DEEPSEEK_API_KEY），系统环境变量优先级更高。
 # python-dotenv 由 fastapi[standard] 传递引入；缺失时静默降级为仅使用系统环境变量。
 try:
@@ -121,6 +119,18 @@ class LLMConfig:
 
 
 @dataclass
+class SQLConfig:
+    """SQL 执行安全与稳定性配置
+
+    为什么要有这一段：SQL 由 LLM 生成，天然不可信，且 5 万单的库上一句没聚合好的
+    SQL 能返回数万行。这里集中放"兜底护栏"参数，避免散落成硬编码常量。
+    """
+    max_result_rows: int = 1000        # 单次查询返回给前端的最大行数（超出则截断）
+    execution_timeout_seconds: int = 30  # 单条 SQL 执行超时（秒），超时按失败处理
+    max_correction_attempts: int = 2   # SQL 校验失败后最多让 LLM 修正几次
+
+
+@dataclass
 class JudgeConfig:
     """评测裁判配置（eval/ 下脚本使用的外部裁判密钥）"""
     # Jev 裁判（~typesafe/jev-latest）经 OpenRouter 决策接口调用所需的密钥。
@@ -147,6 +157,8 @@ class AppConfig:
     llm: LLMConfig              # LLM 配置
     # 评测配置：给默认值，使旧版 app_config.yaml（无 eval 段）仍能正常加载
     eval: EvalConfig = field(default_factory=EvalConfig)
+    # SQL 执行护栏配置：给默认值，使旧版 app_config.yaml（无 sql 段）仍能正常加载
+    sql: SQLConfig = field(default_factory=SQLConfig)
 
 
 # 定位 conf/app_config.yaml 配置文件路径

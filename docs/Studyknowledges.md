@@ -9,6 +9,8 @@
 - [Q2 jieba extract_tags 为什么不用传 topK](#q2-jieba-extract_tags-为什么不用传-topk)
 - [Q3 PromptTemplate 的 input_variables 是什么（模板变量契约）](#q3-prompttemplate-的-input_variables-是什么模板变量契约)
 - [Q4 `python main.py` 启动的到底是哪一层（服务启动边界）](#q4-python-mainpy-启动的到底是哪一层服务启动边界)
+- [Q5 什么是自动化接口测试（与单元测试、评测的边界）](#q5-什么是自动化接口测试与单元测试评测的边界)
+- [Q6 `__init__.py` 里做 re-export 有什么坑](#q6-__init__py-里做-re-export-有什么坑)
 
 ---
 
@@ -509,3 +511,287 @@ cd frontend && npm run dev                # http://localhost:5173
 ### 一句话总结
 
 **`main.py` 只负责「FastAPI 进程」——建应用、挂唯一接口 `/api/query`、在 lifespan 里初始化 5 个客户端；中间件、元知识、前端是另外三个独立的东西。而且因为 `init()` 只是建引擎（懒连接），启动日志成功不代表依赖可用，用 `python -m scripts.check_services` 体检才是准的。**
+
+---
+
+## Q5 什么是自动化接口测试（与单元测试、评测的边界）
+
+### 问题
+
+常听到「接口测试」「集成测试」「自动化测试」，本项目的 `tests/integration/test_api_query.py` 算不算接口测试？
+它和 `tests/unit/`、`eval/` 是什么关系？
+
+### 解答
+
+#### 1. 定义：用代码代替手工点击
+
+**自动化接口测试 = 用程序调用系统的对外接口，并对响应做断言，全部可自动执行。**
+
+三个关键词缺一不可：
+
+| 关键词 | 含义 | 反例 |
+|---|---|---|
+| **接口** | 测对外暴露的入口（HTTP/RPC/消息队列），不是内部函数，也不是界面 | 直接调 `DWMySQLRepository.execute_sql` 是单元测试 |
+| **断言** | 由代码判断对错，不是"跑一下看一眼" | `print(response.text)` 后人工看 |
+| **自动** | 命令行/CI 能重复跑，无需人操作 | 手工打开 Swagger 点一下 |
+
+#### 2. 它在测试体系里的位置
+
+| | 测什么 | 依赖 | 本项目对应 |
+|---|---|---|---|
+| 单元测试 | 函数/类，隔离所有外部依赖 | 无 | `tests/unit/`（114 例） |
+| **接口测试** | 对外契约：路由、状态码、报文格式、业务响应 | 真实服务 | `tests/integration/test_api_query.py` |
+| 评测（eval） | 答得**好不好**（质量度量） | 数据 + 裁判模型 | `eval/run_ragas_eval.py` |
+
+#### 3. 本项目的接口有什么特殊
+
+`main.py` 里只挂了一个接口 `POST /api/query`，而且它返回的是 **SSE 事件流**
+（`media_type="text/event-stream"`），不是普通 JSON：
+
+```
+data: {"type": "progress", "step": "抽取关键字", "status": "running"}
+
+data: {"type": "progress", "step": "抽取关键字", "status": "success"}
+
+data: {"type": "result", "data": [{"大区": "华东", "销售额": 30897460.42}]}
+```
+
+所以本项目接口测试的**核心难点是解析事件流**——`response.json()` 用不上，必须按 `\n\n` 切块、
+再剥掉 `data: ` 前缀逐块 `json.loads`。这段逻辑前端的 `frontend/src/App.vue` 和
+`eval/run_ragas_eval.py` 里各写了一遍，测试里会写第三遍。
+
+#### 4. 现有那条测试为什么"不算"
+
+```python
+# tests/integration/test_api_query.py
+assert response.status_code == 200
+assert response.text.strip(), "响应体为空，链路未产出任何内容"
+```
+
+它的 docstring 自己写明了「不校验答案正确性」。它只做了三件事：发请求、断言 200、断言响应体非空。
+**这是"链路能通"的冒烟测试，几乎没有断言任何契约**——甚至没检查响应到底是不是 SSE 格式，
+也没检查里面有没有 `result` 事件。（顺带一提：`assert response.text.strip()` 这句还有个小坑，
+见第 8 节。）
+
+#### 5. 该断言什么：三个层次
+
+**① 契约层**（与业务无关，最该自动化）
+
+```python
+assert response.status_code == 200
+assert response.headers["content-type"].startswith("text/event-stream")
+# 每一块都符合 SSE 格式且 JSON 可解析
+```
+
+**② 业务层**（本项目的事件协议）
+
+- 事件序列应为 `progress(running) → progress(success) → … → result`
+- 每个 `progress.step` 都在已知集合内（抽取关键字/召回字段/过滤表格/生成SQL/验证SQL/执行SQL…）
+- `result.data` 必须是 `list[dict]`
+- 出现 `error` 事件时**不应再出现** `result` 事件
+
+**③ 边界与异常**（最能体现价值、也最常被漏掉）
+
+| 输入 | 期望 |
+|---|---|
+| 空 `query` | 422（Pydantic 校验，不该走到链路） |
+| 缺 `query` 字段 | 422 |
+| 超长 `query` | 不崩，返回明确错误 |
+| 中间件挂掉 | 返回 `error` 事件，而不是 HTTP 500 裸抛 |
+
+第 ③ 类是接口测试真正值钱的地方——**happy path 谁都能跑通，异常路径才是回归的重灾区**。
+
+#### 6. 关键判断：不要断言生成的 SQL
+
+本项目实测：**同一条问句连跑 5 次会生成 4 个不同的 SQL**（别名不同、甚至语义不同，详见
+`docs/reports/11-稳定性修复与评测集重建.md`）。所以：
+
+- ✅ **该断言的**：结构、事件类型、状态码、事件序列、列名集合
+- ❌ **不该断言的**：具体 SQL 文本、具体数值
+- ➡️ **要测"答得对不对"**：那是 `eval/` 的活，不是接口测试的活
+
+断言具体 SQL 的测试会随机失败，最后的结果一定是被人改成 `@pytest.mark.skip` 或者直接删掉。
+
+#### 7. 和评测的分工（最容易混的一点）
+
+**接口测试问「系统有没有按契约工作」，评测问「系统答得好不好」。**
+
+| | 接口测试 | 评测（eval） |
+|---|---|---|
+| 问题 | 契约是否被遵守 | 答案质量如何 |
+| 结果 | 二值（通过/失败） | 统计（准确率、召回率） |
+| 耗时 | 秒级~分钟级 | 本项目实测 37 分钟（76 条） |
+| 稳定性 | 确定（断言结构） | **有噪声**：同配置连跑两次翻转 3~5 条 |
+| 进 CI | 适合 | **不适合**，会让 CI 变成噪音源 |
+
+本项目当前的测试分布是：单元测试 114 例覆盖较好，**接口测试只有 1 条冒烟（约等于没有）**，
+质量度量靠 eval。中间这一层是最空的。
+
+#### 8. 一个真实的小坑：`response.text` 对 SSE 的语义
+
+现有测试里的 `assert response.text.strip()` 有两个问题：
+
+1. **`TestClient` 会把整个流读完**。对本项目意味着一次完整链路跑完（6~7 次 LLM 调用、
+   几十秒）才会返回——它不是"快速冒烟"。
+2. **SSE 响应体天然含大量空白**（每个事件以 `\n\n` 结尾），用 `.strip()` 判断"非空"
+   几乎恒为真，这个断言基本没有鉴别力。
+
+更好的写法是断言**事件内容**而不只是"非空"：
+
+```python
+import json
+
+def parse_sse(text: str) -> list[dict]:
+    """把 SSE 响应体切成事件列表（与 App.vue / run_ragas_eval 里的解析同构）"""
+    events = []
+    for block in text.split("\n\n"):
+        line = block.strip()
+        if line.startswith("data:"):
+            events.append(json.loads(line[len("data:"):].strip()))
+    return events
+
+def test_query_endpoint_emits_progress_and_result():
+    from fastapi.testclient import TestClient
+    from main import app
+
+    with TestClient(app) as client:
+        response = client.post("/api/query", json={"query": "一共有多少笔订单"})
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+
+    events = parse_sse(response.text)
+    assert events, "没有解析到任何 SSE 事件"
+
+    types = [e["type"] for e in events]
+    assert "result" in types or "error" in types, "既没有结果也没有错误，链路中断"
+    assert not ("result" in types and "error" in types), "结果与错误不应同时出现"
+
+    result = next(e for e in events if e["type"] == "result")
+    assert isinstance(result["data"], list)
+```
+
+对比原版，多出来的断言全是**契约**层面的，不依赖 LLM 生成质量，因此稳定。
+
+### 一句话总结
+
+**自动化接口测试是"用代码调接口 + 用代码断言响应"——本项目唯一的接口 `POST /api/query` 返回
+SSE 事件流，所以要按 `\n\n` 切块解析；断言应该只覆盖契约层（状态码、Content-Type、事件序列、
+字段类型）与异常路径（空 query 422、中间件挂掉返回 error），**绝不能断言具体的 SQL 或数值**
+——那会因为 LLM 的不确定性随机失败。它和 `eval/` 的分工是：接口测试回答"契约有没有被遵守"（二值、可进 CI），
+评测回答"答得好不好"（统计、有噪声、不适合进 CI）。**
+
+---
+
+## Q6 `__init__.py` 里做 re-export 有什么坑
+
+### 问题
+
+很多项目会在 `__init__.py` 里 re-export 一堆东西来简化导入路径。这个做法有什么代价？
+本项目在给 22 个空 `__init__.py` 补导出时，为什么 `server/agent/__init__.py` **刻意不导出 `graph`**？
+
+### 解答
+
+#### 1. 收益：调用方少写几层路径
+
+```python
+# 改造前
+from server.conf.app_config import app_config
+from server.core.log import logger
+from server.entities.column_info import ColumnInfo
+from server.repositories.mysql.dw.dw_mysql_repository import DWMySQLRepository
+from server.repositories.qdrant.column_qdrant_repository import ColumnQdrantRepository
+from server.agent.state import DataAgentState
+
+# 改造后
+from server.conf import app_config
+from server.core import logger
+from server.entities import ColumnInfo
+from server.repositories import DWMySQLRepository, ColumnQdrantRepository
+from server.agent import DataAgentState
+```
+
+收益是真实的：调用方不必记住 `DWMySQLRepository` 在 `mysql/dw/` 还是 `qdrant/` 下，
+重构时挪动文件位置也不必改所有调用点。
+
+#### 2. 坑一：重依赖被"藏"进包初始化
+
+看 `server/agent/graph.py` 的导入块——它是全仓最重的文件：
+
+```python
+from server.agent.nodes.add_extra_context import add_extra_context
+from server.agent.nodes.correct_sql import correct_sql
+from server.agent.nodes.enrich_metric_columns import enrich_metric_columns
+from server.agent.nodes.execute_sql import execute_sql
+...  # 共 26 个内部导入，拉进 13 个节点 + LLM + 仓储 + prompt 加载器
+```
+
+**只要在 `server/agent/__init__.py` 里写一行 `from server.agent.graph import graph`**，
+下面这句看似无关的代码就会先把整条 LangGraph 流水线加载一遍：
+
+```python
+from server.agent.state import DataAgentState   # 本意只想拿个类型定义
+```
+
+代价有两个，都很实际：
+
+1. **每次 import 都变慢**——评测脚本、单元测试、任何用到 agent 层的东西全部受影响；
+2. **大幅提高循环导入的概率**（见下一节）。
+
+#### 3. 坑二：循环导入的发生机制
+
+Python 导入 `a.b.c` 的顺序是：
+
+```
+执行 a/__init__.py  →  执行 a/b/__init__.py  →  执行 a/b/c.py
+```
+
+也就是说，**`__init__.py` 里 import 的模块，会在"包还没初始化完"的状态下被加载**。
+如果那个模块（或它的某个传递依赖）反过来写 `from a import X`——注意是**包级导入**，
+不是 `from a.b.c import X`——此时 `a` 的半成品命名空间里还没有 `X`，直接 `ImportError`。
+
+用**子模块导入**（`from server.agent.state import X`）之所以通常没事，
+是因为 Python 能直接加载子模块、不需要父包初始化完成。但子模块自己所在的
+`__init__.py` 仍然会先跑一遍——所以把重依赖放进去，就是给每个子模块导入都加了一道慢路径。
+
+#### 4. 判断标准：能放什么
+
+| 模块类型 | 能否放 | 例 |
+|---|---|---|
+| 叶子模块（不依赖任何内部模块） | ✅ 最安全 | `server/entities/` |
+| 只依赖同包内的模块 | ✅ 安全 | `server/conf/` |
+| 会拉进大量传递依赖的 | ❌ 不要放 | `server/agent/graph.py` |
+
+#### 5. 本项目的做法
+
+| `__init__.py` | 导出 | 判断依据 |
+|---|---|---|
+| `server/entities/` | 5 个实体 | 纯 dataclass，零内部依赖 |
+| `server/conf/` | `app_config` | 只依赖同包 `config_loader` |
+| `server/clients/` | 5 个客户端单例 | 只依赖 `conf`；且是懒连接，import 不建连接 |
+| `server/repositories/` | 5 个 Repository | 只依赖 `conf`/`entities`/`models`，不反向依赖 |
+| `server/core/` | `logger`、`request_id_ctx_var` | ⚠️ 有副作用：`log.py` 在 import 时就初始化日志 |
+| **`server/agent/`** | 状态类型、上下文、时间工具 | **刻意不含 `graph`**——见上 |
+
+#### 6. 怎么验证没踩坑
+
+光跑一次 `python -c "import xxx"` 不够，因为**不同的首个导入入口会走不同的初始化顺序**。
+要覆盖这几个，每个都**另起一个解释器**：
+
+```bash
+# ① 包级导入
+python -c "from server.agent import DataAgentState; print('ok')"
+# ② 深层子模块优先导入 ← 最容易暴露包初始化问题
+python -c "import server.agent.nodes.generate_sql; print('ok')"
+# ③ 最重的那条路径
+python -c "from server.agent.graph import graph; print('ok')"
+```
+
+本项目这三条都验证过，加导出后仍全部通过。
+
+### 一句话总结
+
+**`__init__.py` 的 re-export 能简化导入，但只该放"叶子模块"或"只依赖同包的模块"；
+把 `graph` 这类重依赖放进包初始化，会让每一处子模块导入都连带加载整条流水线，
+并显著提高循环导入的概率——正确做法是让调用方显式写 `from server.agent.graph import graph`，
+把重依赖暴露在调用点，而不是藏进包里。**

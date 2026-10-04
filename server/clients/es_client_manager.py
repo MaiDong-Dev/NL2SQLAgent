@@ -13,7 +13,6 @@
 # =============================================================================
 
 import asyncio
-from typing import Optional
 
 from elasticsearch import AsyncElasticsearch
 
@@ -35,17 +34,17 @@ class ESClientManager:
         参数：es_config  ESConfig  ES 连接配置（host/port）
         """
         self.es_config = es_config
-        self.client: Optional[AsyncElasticsearch] = None   # 懒加载，init() 后才赋值
+        self.client: AsyncElasticsearch | None = None   # 懒加载，init() 后才赋值
 
     def _get_url(self) -> str:
         """构造 ES 服务的 HTTP 端点地址，如 http://localhost:9200"""
         return f"http://{self.es_config.host}:{self.es_config.port}"
 
-    def init(self):
+    def init(self) -> None:
         """初始化 ES 异步客户端，建立与 ES 服务的连接（在应用启动时调用）"""
         self.client = AsyncElasticsearch(hosts=[self._get_url()])
 
-    async def close(self):
+    async def close(self) -> None:
         """关闭 ES 连接，释放底层资源（在应用关闭时调用）"""
         await self.client.close()
 

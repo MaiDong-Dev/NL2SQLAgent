@@ -20,13 +20,13 @@
 #   而向量检索更适合抽象概念（如字段名/指标名）的语义匹配。
 # =============================================================================
 
-import asyncio
 
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import PromptTemplate
 from langgraph.runtime import Runtime
 
 from server.agent.context import DataAgentContext
+from server.agent.events import EventType, RunStatus
 from server.agent.llm import llm
 from server.agent.state import DataAgentState
 from server.core.log import logger
@@ -34,9 +34,9 @@ from server.entities.value_info import ValueInfo
 from server.prompt.prompt_loader import load_prompt
 
 
-async def recall_value(state: DataAgentState, runtime: Runtime[DataAgentContext]):
+async def recall_value(state: DataAgentState, runtime: Runtime[DataAgentContext]) -> dict:
     writer = runtime.stream_writer
-    writer({"type": "progress", "step": "召回字段取值", "status": "running"})
+    writer({"type": EventType.PROGRESS, "step": "召回字段取值", "status": RunStatus.RUNNING})
 
     query = state["query"]
     keywords = state["keywords"]
@@ -77,11 +77,11 @@ async def recall_value(state: DataAgentState, runtime: Runtime[DataAgentContext]
 
         retrieved_values = list(values_map.values())
 
-        writer({"type": "progress", "step": "召回字段取值", "status": "success"})
+        writer({"type": EventType.PROGRESS, "step": "召回字段取值", "status": RunStatus.SUCCESS})
         logger.info(f"召回字段取值：{list(values_map.keys())}")
 
         return {'retrieved_values': retrieved_values}
     except Exception as e:
-        writer({"type": "progress", "step": "召回字段取值", "status": "error"})
+        writer({"type": EventType.PROGRESS, "step": "召回字段取值", "status": RunStatus.ERROR})
         logger.error(f"召回字段取值失败: {str(e)}")
         raise

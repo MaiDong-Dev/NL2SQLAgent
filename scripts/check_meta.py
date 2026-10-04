@@ -32,7 +32,6 @@ from __future__ import annotations
 import asyncio
 import sys
 from argparse import ArgumentParser
-from collections import Counter
 from pathlib import Path
 
 # 保证 `python scripts/check_meta.py` 与 `python -m scripts.check_meta` 都能 import server 包
